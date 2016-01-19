@@ -16,21 +16,24 @@ import Control.Concurrent.Async.Lifted
 import Data.Foldable (sequenceA_)
 
 main :: IO ()
-main = defaultMain [ bgroup "log10k" [ bench "logging-effect" (nfIO (LoggingEffect.runLoggingT (replicateM_ 1000 loggingEffectLog) loggingEffectStdoutHandler))
-                                     , bench "monad-logger" (nfIO (MonadLogger.runLoggingT (replicateM_ 1000 monadLoggerLog) monadLoggerStdoutHandler))]
+main = defaultMain [ bgroup "log10k" [ bench "logging-effect" (nfIO (LoggingEffect.runLoggingT loggingEffectLog loggingEffectStdoutHandler))
+                                     , bench "monad-logger" (nfIO (MonadLogger.runLoggingT monadLoggerLog monadLoggerStdoutHandler))]
                    , bgroup "log10k-batched"
                             [ bench "logging-effect" (nfIO (LoggingEffect.withFDHandler LoggingEffect.defaultBatchingOptions stdout 0.4 80 $ \h ->
-                                                            LoggingEffect.runLoggingT (replicateM_ 1000 loggingEffectLog)
+                                                            LoggingEffect.runLoggingT loggingEffectLog
                                                                                       (h . LoggingEffect.renderWithSeverity id)))
-                                     , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT (replicateM_ 1000 monadLoggerLog)))]
+                                     , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT monadLoggerLog))]
                    , bgroup "log10k-batched-async"
                             [ bench "logging-effect" (nfIO (LoggingEffect.withFDHandler LoggingEffect.defaultBatchingOptions stdout 0.4 80 $ \h ->
-                                                            LoggingEffect.runLoggingT (nThreads 10 (replicateM_ 100 loggingEffectLog))
+                                                            LoggingEffect.runLoggingT (nThreads 10 loggingEffectLog)
                                                                                       (h . LoggingEffect.renderWithSeverity id)))
-                                     , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT (nThreads 10 (replicateM_ 100 (MonadLogger.logDebugNS "?" "Log message")))))]]
+                                     , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT (nThreads 10 (MonadLogger.logDebugNS "?" "Log message"))))]
+                   , bgroup "map-and-log" [ bench "map-once" (nfIO (LoggingEffect.runLoggingT (LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id loggingEffectLog) loggingEffectStdoutHandler))]
+                   ]
 
 loggingEffectStdoutHandler = PP.putDoc . (<> PP.linebreak) . LoggingEffect.renderWithSeverity id
 
+loggingEffectLog :: LoggingEffect.MonadLog (LoggingEffect.WithSeverity PP.Doc) m => m ()
 loggingEffectLog = LoggingEffect.logMessage (LoggingEffect.WithSeverity LoggingEffect.Debug "Log message")
 
 monadLoggerLog = MonadLogger.logDebugNS "?" "Log message"
