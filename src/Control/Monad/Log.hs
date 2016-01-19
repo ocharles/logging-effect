@@ -9,7 +9,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -47,7 +46,7 @@ module Control.Monad.Log
          WithCallStack(..), withCallStack, renderWithCallStack,
 
          -- * @LoggingT@, a general handler
-         LoggingT, pattern LoggingT, runLoggingT, mapLoggingT,
+         LoggingT(..), runLoggingT, mapLoggingT,
 
          -- ** 'LoggingT' Handlers
          Handler, withFDHandler,
@@ -86,11 +85,10 @@ import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
 import Data.Monoid
-import Data.Text (Text)
 import Data.Time (UTCTime, getCurrentTime)
+import GHC.SrcLoc (SrcLoc, showSrcLoc)
 import GHC.Stack
 import System.IO (Handle)
-import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
@@ -181,59 +179,78 @@ timestamp msg = do
        pure (WithTimestamp msg now)
 
 --------------------------------------------------------------------------------
+-- | Add call stack information to log lines.
+--
+-- This functional requires that you pass around the call stack via implicit
+-- parameters. For more information, see the GHC manual (section 9.14.4.5).
 data WithCallStack a = WithCallStack { msgCallStack :: CallStack
                                      , discardCallStack :: a }
-  deriving (Functor,Traversable,Foldable)
+  deriving (Functor,Traversable,Foldable,Show,Eq)
 
-renderWithCallStack :: (a -> Text) -> WithCallStack a -> Text
+-- | Given a way to render the underlying message @a@ render a message with a
+-- callstack.
+--
+-- The callstack will be pretty-printed underneith the log message itself.
+renderWithCallStack :: (a -> PP.Doc) -> WithCallStack a -> PP.Doc
 renderWithCallStack k (WithCallStack stack msg) =
-  k msg <> "\n" <> T.pack (showCallStack stack)
+  k msg PP.<$> PP.indent 2 (prettyCallStack (getCallStack stack))
 
+prettyCallStack :: [(String,SrcLoc)] -> PP.Doc
+prettyCallStack [] = "empty callstack"
+prettyCallStack (root:rest) =
+  prettyCallSite root PP.<$> PP.indent 2 (PP.vsep (map prettyCallSite rest))
+  where prettyCallSite (f,loc) =
+          PP.text (LT.pack f) <> ", called at " <>
+          PP.text (LT.pack (showSrcLoc loc))
+
+-- | Construct a 'WithCallStack' log message.
+--
+-- This should normally be preferred over just using 'WithCallStack' as it will
+-- append a new entry to the stack - pointing to this exact log line. However,
+-- if you are creating a combinator (such as a wrapper that logs and throws
+-- an exception), you may be better manually capturing the 'CallStack' and
+-- using 'WithCallStack'.
 withCallStack :: (?stack :: CallStack) => a -> WithCallStack a
-withCallStack = WithCallStack (popCallStack ?stack)
-
--- TODO
-popCallStack = id
+withCallStack = WithCallStack ?stack
 
 --------------------------------------------------------------------------------
 -- | 'LoggingT' is a very general handler for the 'MonadLog' effect. Whenever a
 -- log entry is emitted, the given 'Handler' is invoked, producing some
 -- side-effect (such as writing to @stdout@, or appending a database table).
 newtype LoggingT message m a =
-  MkLoggingT (ReaderT (Handler m message) m a)
+  LoggingT (ReaderT (Handler m message) m a)
   deriving (Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO,MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s)
 
 instance MonadBase b m => MonadBase b (LoggingT message m) where
   liftBase = lift . liftBase
 
 instance MonadBaseControl b m => MonadBaseControl b (LoggingT message m) where
-    type StM (LoggingT message m) a = StM m a
-    liftBaseWith runInBase =
-      LoggingT (\handler -> liftBaseWith (\runInReader -> runInBase (\(LoggingT m) -> runInReader (m handler))))
-    restoreM st = LoggingT (\_ -> restoreM st)
-
--- | 'LoggingT' @messasge@ @m@ is isomorphic to @Handler message m -> m ()@.
--- This is a reader monad with base effects in @m@ and access to
--- @Handler message m@.This pattern synonym witnesses that isomorphism.
-pattern LoggingT f = MkLoggingT (ReaderT f)
+  type StM (LoggingT message m) a = StM m a
+  liftBaseWith runInBase =
+    LoggingT (ReaderT (\handler ->
+                         liftBaseWith
+                           (\runInReader ->
+                              runInBase (\(LoggingT (ReaderT m)) ->
+                                           runInReader (m handler)))))
+  restoreM st = LoggingT (ReaderT (\_ -> restoreM st))
 
 -- | Given a 'Handler' for a given @message@, interleave this 'Handler' into the
 -- underlying @m@ computation whenever 'logMessage' is called.
 runLoggingT
   :: LoggingT message m a -> Handler m message -> m a
-runLoggingT (LoggingT m) handler = m handler
+runLoggingT (LoggingT (ReaderT m)) handler = m handler
 
 instance MonadTrans (LoggingT message) where
-  lift = LoggingT . const
+  lift = LoggingT . ReaderT . const
 
 instance MonadReader r m => MonadReader r (LoggingT message m) where
   ask = lift ask
-  local f (LoggingT m) = LoggingT (local f . m)
+  local f (LoggingT (ReaderT m)) = LoggingT (ReaderT (local f . m))
   reader f = lift (reader f)
 
 -- | The main instance of 'MonadLog', which replaces calls to 'logMessage' with calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
-  logMessage m = LoggingT (\f -> f m)
+  logMessage m = LoggingT (ReaderT (\f -> f m))
 
 instance MonadRWS r w s m => MonadRWS r w s (LoggingT message m)
 
@@ -244,10 +261,10 @@ instance (Functor f,MonadFree f m) => MonadFree f (LoggingT message m)
 -- a monad transformer. However, it is possible to do this with 'LoggingT'
 -- provided that you have a way to re-interpret a log handler in the
 -- original monad.
-mapLoggingT :: (forall a. (Handler m message -> m a) -> (Handler n message' -> n a))
+mapLoggingT :: (forall x. (Handler m message -> m x) -> (Handler n message' -> n x))
             -> LoggingT message m a
             -> LoggingT message' n a
-mapLoggingT eta (LoggingT f) = LoggingT (eta f)
+mapLoggingT eta (LoggingT (ReaderT f)) = LoggingT (ReaderT (eta f))
 
 --------------------------------------------------------------------------------
 -- | Handlers are mechanisms to interpret the meaning of logging as an action
