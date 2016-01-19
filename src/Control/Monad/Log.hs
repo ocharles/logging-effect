@@ -1,6 +1,8 @@
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE AutoDeriveTypeable #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -9,82 +11,38 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
-{-|
-
-'MonadLog' is a general purpose logging effect. Unlike other logging
-libraries available on Hackage, 'MonadLog' does /not/ assume that you
-will be logging text information. Instead, the choice of logging data
-is up to you. This, combined with 'mapLogMessage' and the ability to
-/reintepret/ log messages results in an extremely powerful set of
-logging combinators.
-
-This library also comes with a flexible default implementation of
-'MonadLog'. 
-
-We'll explore this power in the tutorial.
-
-/Tutorial/:
-
-To add logging to your applications, you will need to make two changes.
-
-First, use the 'MonadLog' type class to indicate that a computation has
-access to logging. 'MonadLog' is parameterized on the type of messages
-that you intend to log. In this example, we will log 'Text' that is
-wrapped in the 'WithSeverity'. Note that this does /not/ specify how
-to perform the actual logging.
-
-@
-testApp :: MonadLog (WithSeverity Text) m => m ()
-testApp = do
-  logMessage (WithSeverity Info "Don't mind me")
-  logMessage (WithSeverity Error "But do mind me!")
-@
-
-Next, we need to run this computation under a 'MonadLog' effect handler.
-In this example, we open two file descriptor loggers, so we can dispatch
-our log events to @STDOUT@ and @STDERR@. We use 'choose' to split out log
-messages between these two 'Handler's - messages with a 'msgSeverity' of
-'Error' will go to @STDERR@, and all other messages will go to @STDOUT@.
-
-Note that both our @STDOUT@ and @STDERR@ handlers only know how to log
-'Text' (see the type of 'withFDHandler'). However, we're logging
-@WithSeverity@ @Text@, so we need to adjust these handles. To do so, we
-use function pre-composition to adjust their inputs. For @stdoutHandler@, I use
-'renderWithSeverity' to render the severity information, and then pass the
-log message through unchanged. For @stderrHandler@ I also render the
-severity information, but I also transform the text into all caps -
-I really don't want to miss those messages!
-
-@
-withSplitLogging :: 'LoggingT' ('WithSeverity' 'Text') 'IO' () -> 'IO' ()
-withSplitLogging m =
-  'withFDHandler' 'defaultBatchingOptions' 'stderr' $ \stderrHandler ->
-  'withFDHandler' 'defaultBatchingOptions' 'stdout' $ \stdoutHandler ->
-  'runLoggingT' m 
-              (\\message ->
-                 case 'msgSeverity' message of
-                   'Error' -> stderrHandler ('renderWithSeverity' 'id' message)
-                   _ ->
-                     stdoutHandler
-                       ('renderWithSeverity' ("T".'T.map' 'toUpper')
-                                           message))
-@
-
--}
-
 module Control.Monad.Log
-       ( -- * @MonadLog@
+       ( -- * Introduction
+         -- $intro
+
+         -- * Getting Started
+         -- $tutorialIntro
+
+         -- ** Working with @logging-effect@
+         -- *** Emitting log messages
+         -- $tutorial-monadlog
+
+         -- *** Outputting with 'LoggingT'
+         -- $tutorial-loggingt
+
+         -- *** Adapting and composing logging
+         -- $tutorial-composing
+         
+         -- * @MonadLog@
          MonadLog(..), mapLogMessage,
 
-         -- * Message wrappers
+         -- * Message transformers
          -- ** Timestamps
          WithTimestamp(..), withTimestamps, renderWithTimestamp,
          -- ** Severity
          WithSeverity(..), Severity(..), renderWithSeverity,
+         -- ** Call stacks
+         WithCallStack(..), withCallStack, renderWithCallStack, 
 
          -- * @LoggingT@, a general handler
          LoggingT, pattern LoggingT, runLoggingT, mapLoggingT,
@@ -100,8 +58,12 @@ module Control.Monad.Log
 
          -- * Discarding logs
          DiscardLoggingT, discardLogging
+
+         -- * Aside: An @mtl@ refresher
+         -- $tutorialMtl
        ) where
 
+import GHC.Stack
 import Data.Coerce
 import Control.Concurrent.STM
 import Control.Concurrent.STM.Delay
@@ -185,6 +147,7 @@ data WithTimestamp a =
   WithTimestamp {discardTimestamp :: a -- ^ Retireve the time a message was logged.
                 ,msgTimestamp :: UTCTime -- ^ View the underlying message.
                 }
+  deriving (Functor,Traversable,Foldable)
 
 -- | Given a way to render the underlying message @a@ and a way to format
 -- 'UTCTime', render a message with its timestamp.
@@ -211,6 +174,21 @@ withTimestamps m =
     (\msg ->
        do now <- liftIO getCurrentTime
           logMessage (WithTimestamp msg now))
+
+--------------------------------------------------------------------------------
+data WithCallStack a = WithCallStack { msgCallStack :: CallStack
+                                     , discardCallStack :: a }
+  deriving (Functor,Traversable,Foldable)
+
+renderWithCallStack :: (a -> Text) -> WithCallStack a -> Text
+renderWithCallStack k (WithCallStack stack msg) =
+  k msg <> "\n" <> T.pack (showCallStack stack)
+
+withCallStack :: (?stack :: CallStack) => a -> WithCallStack a
+withCallStack = WithCallStack (popCallStack ?stack) 
+
+-- TODO
+popCallStack = id
 
 --------------------------------------------------------------------------------
 -- | 'LoggingT' is a very general handler for the 'MonadLog' effect. Whenever a
@@ -252,16 +230,10 @@ instance (Functor f,MonadFree f m) => MonadFree f (LoggingT message m)
 -- a monad transformer. However, it is possible to do this with 'LoggingT'
 -- provided that you have a way to re-interpret a log handler in the
 -- original monad.
-mapLoggingT :: (Handler n message' -> Handler m message)
-               -- ^ Given a handler for the new monad @n@, embed this handler
-               -- inside the original monad @m@.
-            -> (forall a. m a -> n a)
-               -- ^ A natural transformation/monad morphism from the original
-               -- monad @m@ to the new monad @n@. For example, you could use
-               -- 'liftIO' or 'runWriterT'.
+mapLoggingT :: (forall a. (Handler m message -> m a) -> (Handler n message' -> n a))
             -> LoggingT message m a
             -> LoggingT message' n a
-mapLoggingT etaHandler eta (LoggingT f) = LoggingT (eta . f . etaHandler)
+mapLoggingT eta (LoggingT f) = LoggingT (eta f)
 
 --------------------------------------------------------------------------------
 -- | Handlers are mechanisms to interpret the meaning of logging as an action
@@ -273,16 +245,19 @@ type Handler m message = message -> m ()
 data BatchingOptions =
   BatchingOptions {flushMaxDelay :: Int -- ^ The maximum amount of time to wait between flushes
                   ,flushMaxQueueSize :: Int -- ^ The maximum amount of messages to hold in memory between flushes}
+                  ,blockWhenFull :: Bool -- ^ If the 'Handler' becomes full, 'logMessage' will block until the queue is flushed if 'blockWhenFull' is 'True', otherwise it will drop that message and continue.
                   }
   deriving (Eq,Ord,Read,Show)
 
 -- | Defaults for 'BatchingOptions'
 --
 -- @
--- 'defaultBatchingOptions' = 'BatchingOptions' { 'flushMaxDelay' = 1000000, 'flushMaxQueueSize' = 100 }
+-- 'defaultBatchingOptions' = 'BatchingOptions' {'flushMaxDelay' = 1000000
+--                                          ,'flushMaxQueueSize' = 100
+--                                          ,'blockWhenFull' = 'True'}
 -- @
 defaultBatchingOptions :: BatchingOptions
-defaultBatchingOptions = BatchingOptions 1000000 100
+defaultBatchingOptions = BatchingOptions 1000000 100 True
 
 -- | Create a new batched handler. Batched handlers take batches of messages to
 -- log at once, which can be more performant than logging each individual
@@ -308,7 +283,11 @@ withBatchedHandler BatchingOptions{..} flush k =
                 (\publisher ->
                    do liftIO (do atomically (writeTVar closed True)
                                  wait publisher))
-                (\_ -> k (liftIO . atomically . writeTBQueue channel))
+                (\_ ->
+                   k (\msg ->
+                        liftIO (atomically
+                                  (writeTBQueue channel msg <|>
+                                   check (not blockWhenFull)))))
   where repeatWhileTrue m =
           do again <- m
              if again
@@ -427,3 +406,235 @@ withSplitLogging m =
                stdoutHandler
                  (renderWithSeverity (T.map toUpper)
                                      message))
+
+{- $intro
+
+"Control.Monad.Log" provides a toolkit for general logging in Haskell programs
+and libraries. The library consists of the type class 'MonadLog' to add log
+output to computations, and this library comes with a set of instances to help
+you decide how this logging should be performed. There are predefined handlers
+to write to file handles, to accumulate logs purely, or to discard logging
+entirely.
+
+Unlike other logging libraries available on Hackage, 'MonadLog' does /not/
+assume that you will be logging text information. Instead, the choice of logging
+data is up to you. This leads to a highly compositional form of logging, with
+the able to reinterpret logs into different formats, and avoid throwing
+information away if your final output is structured (such as logging to a
+relational database).
+
+-}
+
+{- $tutorialIntro
+
+"Control.Monad.Log" is designed to be used via the 'MonadLog' type class and
+encourages an "mtl" style approach to programming. If you're not familiar with
+the @mtl@ library, this approach uses type classes to keep the choice of monad
+polymorphic as you program, and you later choose a specific monad transformer
+stack when you execute your program. For more information, see
+<#tutorialMtl Aside: An mtl refresher>.
+
+-}
+
+{- $tutorialMtl #tutorialMtl#
+
+If you are already familiar with @mtl@ you can skip this section. This is not
+designed to be an exhaustive introduction to the @mtl@ library, but hopefully
+via a short example you'll have a basic familarity with the approach.
+
+In this example, we'll write a program with access to state and general 'IO'
+actions. One way to do this would be to work with monad transformers, stacking
+'StateT' on top of 'IO':
+
+@
+import Control.Monad.Trans.State.Strict (StateT, get, put)
+import Control.Monad.Trans.Class (lift)
+
+transformersProgram :: StateT Int IO ()
+transformersProgram = do
+  stateNow <- get
+  lift launchMissles
+  put (stateNow + 42)
+@
+
+This is OK, but it's not very flexible. For example, the transformers library
+actually provides us with two implementations of state monads - strict and a
+lazy variant. In the above approach we have forced the user into a choice (we
+chose the strict variant), but this can be undesirable. We could imagine that
+in the future there may be even more implementations of state monads (for
+example, a state monad that persists state entirely on a remote machine) - if
+requirements change we are unable to reuse this program without changing its
+type.
+
+With the @mtl@, we instead program to an /abstract specification/ of the effects
+we require, and we postpone the choice of handler until the point when the
+computation is ran.
+
+Rewriting the @transformersProgram@ using @mtl@, we have the following:
+
+@
+import Control.Monad.State.Class (MonadState(get, put))
+import Control.Monad.IO.Class (MonadIO(liftIO))
+
+mtlProgram :: (MonadState Int m, MonadIO m) => m ()
+mtlProgram = do
+  stateNow <- get
+  liftIO launchMissles
+  put (stateNow + 42)
+@
+
+Notice that @mtlProgram@ doesn't specify a concrete choice of state monad. The
+"transformers" library gives us two choices - strict or lazy state monads. We
+make the choice of a specific monad stack when we run our program:
+
+@
+import Control.Monad.Trans.State.Strict (execStateT)
+
+main :: IO ()
+main = execStateT mtlProgram 99
+@
+
+Here we chose the strict variant via 'execStateT'. Using 'execStateT'
+*eliminates* the 'MonadState' type class from @mtlProgram@, so now we only have
+to fulfill the 'MonadIO' obligation. There is only one way to handle this, and
+that's by working in the 'IO' monad. Fortunately we're inside the @main@
+function, which is in the 'IO' monad, so we're all good.
+
+-}
+
+{- $tutorial-monadlog
+
+To add logging to your applications, you will need to make two changes.
+
+First, use the 'MonadLog' type class to indicate that a computation has
+access to logging. 'MonadLog' is parameterized on the type of messages
+that you intend to log. In this example, we will log 'Text' that is
+wrapped in the 'WithSeverity'. 
+
+@
+testApp :: MonadLog (WithSeverity Text) m => m ()
+testApp = do
+  logMessage (WithSeverity Info "Don't mind me")
+  logMessage (WithSeverity Error "But do mind me!")
+@
+
+Note that this does /not/ specify where the logs "go", we'll address that when
+we run the program.
+
+-}
+
+{- $tutorial-loggingt
+
+Next, we need to run this computation under a 'MonadLog' effect handler. The
+most flexible handler is 'LoggingT'. 'LoggingT' runs a 'MonadLog' computation
+by providing it with a 'Handler', which is a computation that can be in the
+underlying monad.
+
+For example, we can easily fulfill the 'MonadLog' type class by just using
+'print' as our 'Handler':
+
+>>> runLoggingT testApp print
+WithSeverity Info "Don't mind me"
+WithSeverity Error "But do mind me!"
+
+The log messages are printed according to their 'Show' instances, and while
+this works is not particularly user friendly. As 'Handler's are just functions
+from log messages to monadic actions, we can easily reformat log messages.
+"logging-effect" comes with a few "log message transformers" (such as
+'WithSeverity'), and each of these message transformers has a canonical way to
+render in a human-readable format:
+
+>>> runLoggingT testApp (print . renderWithSeverity id)
+[Info] Don't mind me
+[Error] But do mind me!
+
+That's looking much more usable - and in fact this approach is probably fine for
+command line applications.
+
+However, for longer running high performance applications there is a slight
+problem. Remember that 'runLoggingT' simply interleaves the given 'Handler'
+whenever 'logMessage' is called. By providing 'print' as a 'Handler', our
+application will actually block until the log is complete. This is undesirable
+for high performance applications, where it's much better to log asynchronously.
+
+"logging-effect" comes with "batched handlers" for this problem. Batched handlers
+are handlers that log asynchronously, are flushed periodically, and have maximum
+memory impact. Batched handlers are created with 'withBatchedHandler', though
+if you are just logging to file descriptors you can also use 'withFDHandler'.
+We'll use this next to log to @STDOUT@:
+
+@
+main :: IO ()
+main =
+  withFDHandler defaultBatchingOptions stdout $ \logToStdout ->
+  runLoggingT testApp logToStdout
+@
+
+Finally, as 'Handler's are just functions (we can't stress this enough!) you
+are free to slice-and-dice your log messages however you want. As our log
+messages are structured, we can pattern match on the messages and dispatch them
+to multiple handlers. In this final example of using 'LoggingT' we'll split
+our log messages between @STDOUT@ and @STDERR@, and change the formatting of
+error messages:
+
+@
+main :: IO ()
+main = do
+  'withFDHandler' 'defaultBatchingOptions' 'stderr' $ \stderrHandler ->
+  'withFDHandler' 'defaultBatchingOptions' 'stdout' $ \stdoutHandler ->
+  'runLoggingT' m 
+              (\\message ->
+                 case 'msgSeverity' message of
+                   'Error' -> stderrHandler  ("T".'T.map' 'toUpper' ('discardSeverity' message))
+                   _ -> stdoutHandler ('renderWithSeverity' id message))
+@
+
+>>> main
+STDOUT: [Info] Don't mind me!
+STDERR: BUT DO MIND ME!
+
+-}
+
+{- $tutorial-composing
+
+So far we've considered very small applications where all log messages fit nicely
+into a single type. However, as applications grow and begin to reuse components,
+it's unlikely that this approach will scale. 'Control.Monad.Log' comes with a
+mapping function - 'mapLogMessage' - which allows us to map log messages from one
+type to another (just like how we can use 'map' to change elements of a list).
+
+For example, we've already seen the basic @testApp@ computation above that used
+'WithSeverity' to add severity information to log messages. Elsewhere we might
+have some older code that doesn't yet have any severity information:
+
+@
+legacyCode :: MonadLog Text m => m ()
+legacyCode = logMessage "Does anyone even remember writing this function?"
+@
+
+Here @legacyCode@ is only logging 'Text', while our @testApp@ is logging
+'WithSeverity' 'Text'. What happens if we compose these programs?
+
+>>> :t testApp >> legacyCode
+  Couldn't match type ‘[Char]’ with ‘WithSeverity Text’
+
+Whoops! 'MonadLog' has /functional dependencies/ on the type class which means
+that there can only be a single way to log per monad. One solution might be
+to 'lift' one set of logs into the other:
+
+>>> :t testApp >> lift legacyCode
+  :: (MonadTrans t, MonadLog Text m, MonadLog (WithSeverity Text) (t m)) => t m ()
+
+And indeed, this is /a/ solution, but it's not a particularly nice one.
+
+Instead, we can map both of these computations into a common log format:
+
+>>> :t mapLogMessage Left testApp >> mapLogMessage Right (logMessage "Hello")
+  :: (MonadLog (Either (WithSeverity Text) Text) m) => m ()
+
+This is a trivial way of combining two different types of log message. In larger
+applications you will probably want to define a new sum-type that combines all of
+your log messages, and generally sticking with a single log message type per
+application. 
+
+-}
