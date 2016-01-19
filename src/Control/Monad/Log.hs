@@ -348,7 +348,12 @@ withBatchedHandler BatchingOptions{..} flush k =
 -- rather than blocking.
 withFDHandler
   :: (MonadIO io,MonadMask io)
-  => BatchingOptions -> Handle -> Float -> Int -> (Handler io PP.Doc -> io a) -> io a
+  => BatchingOptions
+  -> Handle -- ^ The 'Handle' to write log messages to.
+  -> Float -- ^ The @ribbonFrac@ parameter to 'PP.renderPretty'
+  -> Int -- ^ The amount of characters per line. Lines longer than this will be pretty-printed across multiple lines if possible.
+  -> (Handler io PP.Doc -> io a)
+  -> io a
 withFDHandler options fd ribbonFrac width =
   withBatchedHandler options
                      (PP.displayIO fd . PP.renderPretty ribbonFrac width . (<> PP.linebreak) . PP.vsep)
