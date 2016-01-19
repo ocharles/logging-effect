@@ -13,6 +13,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -32,17 +33,18 @@ module Control.Monad.Log
 
          -- *** Adapting and composing logging
          -- $tutorial-composing
-         
+
          -- * @MonadLog@
          MonadLog(..), mapLogMessage,
 
          -- * Message transformers
+         PP.renderPretty,
          -- ** Timestamps
          WithTimestamp(..), withTimestamps, renderWithTimestamp,
          -- ** Severity
          WithSeverity(..), Severity(..), renderWithSeverity,
          -- ** Call stacks
-         WithCallStack(..), withCallStack, renderWithCallStack, 
+         WithCallStack(..), withCallStack, renderWithCallStack,
 
          -- * @LoggingT@, a general handler
          LoggingT, pattern LoggingT, runLoggingT, mapLoggingT,
@@ -64,6 +66,8 @@ module Control.Monad.Log
        ) where
 
 import GHC.Stack
+import Control.Monad.Base
+import Control.Monad.Trans.Control
 import Data.Coerce
 import Control.Concurrent.STM
 import Control.Concurrent.STM.Delay
@@ -92,8 +96,10 @@ import Data.Monoid
 import Data.Text (Text, pack)
 import Data.Text.IO (hPutStr)
 import Data.Time (UTCTime, TimeLocale, getCurrentTime)
-import System.IO (Handle, stderr, stdout)
+import System.IO (Handle, stderr, stdout, hPutChar)
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as LT
+import qualified Text.PrettyPrint.Leijen.Text as PP
 
 --------------------------------------------------------------------------------
 -- | The class of monads that support logging.
@@ -132,14 +138,18 @@ data Severity =
  | Debug -- ^ Information useful to developers for debugging the application.
   deriving (Eq,Enum,Bounded,Read,Show,Ord)
 
+instance PP.Pretty Severity where
+  pretty = PP.text . LT.pack . show
+
 -- | Given a way to render the underlying message @a@ render a message with its
 -- timestamp.
 --
 -- >>> renderWithSeverity id Debug (WithSeverity Info "Flux capacitor is functional")
 -- [Info] Flux capacitor is functional
 renderWithSeverity
-  :: (a -> Text) -> (WithSeverity a -> Text)
-renderWithSeverity k (WithSeverity u a) = "[" <> pack (show u) <> "] " <> k a
+  :: (a -> PP.Doc) -> (WithSeverity a -> PP.Doc)
+renderWithSeverity k (WithSeverity u a) =
+  PP.brackets (PP.pretty u) PP.<+> PP.align (k a)
 
 --------------------------------------------------------------------------------
 -- | Add a timestamp to log messages.
@@ -155,7 +165,7 @@ data WithTimestamp a =
 -- >>> renderWithTimestamp (formatTime defaultTimeLocale rfc822DateFormat) id timestamppedLogMessage
 -- [Tue, 19 Jan 2016 11:29:42 UTC] Setting target speed to plaid
 renderWithTimestamp :: (UTCTime -> String)
-                       -- ^ How to format the timestamp. 
+                       -- ^ How to format the timestamp.
                     -> (a -> Text)
                        -- ^ How to render the rest of the message.
                     -> (WithTimestamp a -> Text)
@@ -185,7 +195,7 @@ renderWithCallStack k (WithCallStack stack msg) =
   k msg <> "\n" <> T.pack (showCallStack stack)
 
 withCallStack :: (?stack :: CallStack) => a -> WithCallStack a
-withCallStack = WithCallStack (popCallStack ?stack) 
+withCallStack = WithCallStack (popCallStack ?stack)
 
 -- TODO
 popCallStack = id
@@ -197,6 +207,15 @@ popCallStack = id
 newtype LoggingT message m a =
   MkLoggingT {unLoggingT :: ReaderT (Handler m message) m a}
   deriving (Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO,MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s)
+
+instance MonadBase b m => MonadBase b (LoggingT message m) where
+  liftBase = lift . liftBase
+
+instance MonadBaseControl b m => MonadBaseControl b (LoggingT message m) where
+    type StM (LoggingT message m) a = StM m a
+    liftBaseWith runInBase =
+      LoggingT (\handler -> liftBaseWith (\runInReader -> runInBase (\(LoggingT m) -> runInReader (m handler))))
+    restoreM st = LoggingT (\_ -> restoreM st)
 
 -- | 'LoggingT' @messasge@ @m@ is isomorphic to @Handler message m -> m ()@.
 -- This is a reader monad with base effects in @m@ and access to
@@ -318,25 +337,38 @@ withBatchedHandler BatchingOptions{..} flush k =
              case mx of
                Nothing -> return []
                Just x -> fmap (x :) (emptyTBQueue q)
-  
+
 -- | 'withFDHandler' creates a new 'Handler' that will append a given file
 -- descriptor (or 'Handle', as it is known in the "base" library). Note that
--- this 'Handler' requires log messages to be of type 'Text'. 
+-- this 'Handler' requires log messages to be of type 'Text'.
 --
 -- These 'Handler's asynchronously log messages to the given file descriptor,
 -- rather than blocking.
 withFDHandler
   :: (MonadIO io,MonadMask io)
-  => BatchingOptions -> Handle -> (Handler io Text -> io a) -> io a
-withFDHandler options fd =
+  => BatchingOptions -> Handle -> Float -> Int -> (Handler io PP.Doc -> io a) -> io a
+withFDHandler options fd ribbonFrac width =
   withBatchedHandler options
-                     (hPutStr fd . T.unlines)
+                     (PP.displayIO fd . PP.renderPretty ribbonFrac width . (<> PP.linebreak) . PP.vsep)
 
 --------------------------------------------------------------------------------
 -- | A 'MonadLog' handler optimised for pure usage. Log messages are accumulated
 -- strictly, given that messasges form a 'Monoid'.
 newtype PureLoggingT log m a = MkPureLoggingT (StateT log m a)
   deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus)
+
+instance MonadBase b m => MonadBase b (PureLoggingT message m) where
+  liftBase = lift . liftBase
+
+instance MonadTransControl (PureLoggingT message) where
+    type StT (PureLoggingT message) a = StT (StateT message) a
+    liftWith = defaultLiftWith MkPureLoggingT (\(MkPureLoggingT m) -> m)
+    restoreT = defaultRestoreT MkPureLoggingT
+
+instance MonadBaseControl b m => MonadBaseControl b (PureLoggingT message m) where
+  type StM (PureLoggingT message m) a = ComposeSt (PureLoggingT message) m a
+  liftBaseWith     = defaultLiftBaseWith
+  restoreM         = defaultRestoreM
 
 runPureLoggingT
   :: Monoid log
@@ -359,19 +391,24 @@ instance (Functor f, MonadFree f m) => MonadFree f (PureLoggingT log m)
 
 -- | A pure handler of 'MonadLog' that accumulates log messages under the structure of their 'Monoid' instance.
 instance (Monad m, Monoid log) => MonadLog log (PureLoggingT log m) where
-  logMessage message = mkPureLoggingT (return ((), message)) 
+  logMessage message = mkPureLoggingT (return ((), message))
 
 instance MonadRWS r w s m => MonadRWS r w s (PureLoggingT message m)
 
 instance MonadState s m => MonadState s (PureLoggingT log m) where
-  state f = lift (state f) 
+  state f = lift (state f)
   get = lift get
-  put = lift . put 
+  put = lift . put
 
 --------------------------------------------------------------------------------
 newtype DiscardLoggingT message m a =
   DiscardLoggingT {discardLogging :: m a}
-  deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s)
+  deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s,MonadBase b)
+
+instance MonadBaseControl b m => MonadBaseControl b (DiscardLoggingT message m) where
+  type StM (DiscardLoggingT message m) a = StM m a
+  liftBaseWith runInBase = lift (liftBaseWith (\runInOrig -> runInBase (runInOrig . discardLogging)))
+  restoreM = lift . restoreM
 
 instance MonadTrans (DiscardLoggingT message) where
   lift = DiscardLoggingT
@@ -381,31 +418,6 @@ instance (Functor f,MonadFree f m) => MonadFree f (DiscardLoggingT message m)
 -- | The trivial instance of 'MonadLog' that simply discards all messages logged.
 instance Monad m => MonadLog message (DiscardLoggingT message m) where
   logMessage _ = return ()
-
---------------------------------------------------------------------------------
--- Test cases
-testApp :: MonadLog (WithSeverity Text) m
-        => m ()
-testApp =
-  do logMessage (WithSeverity Informational "Don't mind me")
-     logMessage (WithSeverity Error "But do mind me!")
-
-withSplitLogging
-  :: LoggingT (WithSeverity Text) IO () -> IO ()
-withSplitLogging m =
-  withFDHandler defaultBatchingOptions stderr $
-  \stderrHandler ->
-    withFDHandler defaultBatchingOptions stdout $
-    \stdoutHandler ->
-      runLoggingT
-        m
-        (\message ->
-           case msgSeverity message of
-             Error -> stdoutHandler (renderWithSeverity id message)
-             _ ->
-               stdoutHandler
-                 (renderWithSeverity (T.map toUpper)
-                                     message))
 
 {- $intro
 
@@ -509,7 +521,7 @@ To add logging to your applications, you will need to make two changes.
 First, use the 'MonadLog' type class to indicate that a computation has
 access to logging. 'MonadLog' is parameterized on the type of messages
 that you intend to log. In this example, we will log 'Text' that is
-wrapped in the 'WithSeverity'. 
+wrapped in the 'WithSeverity'.
 
 @
 testApp :: MonadLog (WithSeverity Text) m => m ()
@@ -582,7 +594,7 @@ main :: IO ()
 main = do
   'withFDHandler' 'defaultBatchingOptions' 'stderr' $ \stderrHandler ->
   'withFDHandler' 'defaultBatchingOptions' 'stdout' $ \stdoutHandler ->
-  'runLoggingT' m 
+  'runLoggingT' m
               (\\message ->
                  case 'msgSeverity' message of
                    'Error' -> stderrHandler  ("T".'T.map' 'toUpper' ('discardSeverity' message))
@@ -635,6 +647,6 @@ Instead, we can map both of these computations into a common log format:
 This is a trivial way of combining two different types of log message. In larger
 applications you will probably want to define a new sum-type that combines all of
 your log messages, and generally sticking with a single log message type per
-application. 
+application.
 
 -}
