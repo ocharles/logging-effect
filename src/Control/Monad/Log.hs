@@ -65,38 +65,31 @@ module Control.Monad.Log
          -- $tutorialMtl
        ) where
 
-import GHC.Stack
-import Control.Monad.Base
-import Control.Monad.Trans.Control
-import Data.Coerce
+import Control.Applicative
+import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.STM
 import Control.Concurrent.STM.Delay
-import Control.Applicative
 import Control.Monad (MonadPlus, guard)
-import Control.Monad.Catch
-       (MonadThrow(..), MonadMask(..), MonadCatch(..), bracket)
+import Control.Monad.Base
+import Control.Monad.Catch (MonadThrow(..), MonadMask(..), MonadCatch(..), bracket)
 import Control.Monad.Cont.Class (MonadCont(..))
 import Control.Monad.Error.Class (MonadError(..))
 import Control.Monad.Fix
 import Control.Monad.Free.Class (MonadFree(..))
-import Control.Monad.RWS.Class (MonadRWS(..))
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.RWS.Class (MonadRWS)
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Writer.Class (MonadWriter(..))
-import Control.Monad.Trans.State.Strict (StateT(..))
-import Control.Monad.Trans.Writer.Strict (runWriterT)
-import Control.Concurrent.Async (async, wait)
-import Control.Concurrent.Chan
-       (newChan, writeChan, getChanContents)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT(..))
-import Data.Char
+import Control.Monad.Trans.State.Strict (StateT(..))
+import Control.Monad.Writer.Class (MonadWriter(..))
 import Data.Monoid
-import Data.Text (Text, pack)
-import Data.Text.IO (hPutStr)
-import Data.Time (UTCTime, TimeLocale, getCurrentTime)
-import System.IO (Handle, stderr, stdout, hPutChar)
+import Data.Text (Text)
+import Data.Time (UTCTime, getCurrentTime)
+import GHC.Stack
+import System.IO (Handle)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -207,7 +200,7 @@ popCallStack = id
 -- log entry is emitted, the given 'Handler' is invoked, producing some
 -- side-effect (such as writing to @stdout@, or appending a database table).
 newtype LoggingT message m a =
-  MkLoggingT {unLoggingT :: ReaderT (Handler m message) m a}
+  MkLoggingT (ReaderT (Handler m message) m a)
   deriving (Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO,MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s)
 
 instance MonadBase b m => MonadBase b (LoggingT message m) where
@@ -518,7 +511,7 @@ main = 'execStateT' mtlProgram 99
 @
 
 Here we chose the strict variant via 'execStateT'. Using 'execStateT'
-*eliminates* the 'MonadState' type class from @mtlProgram@, so now we only have
+/eliminates/ the 'MonadState' type class from @mtlProgram@, so now we only have
 to fulfill the 'MonadIO' obligation. There is only one way to handle this, and
 that's by working in the 'IO' monad. Fortunately we're inside the @main@
 function, which is in the 'IO' monad, so we're all good.
