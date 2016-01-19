@@ -372,6 +372,8 @@ instance MonadBaseControl b m => MonadBaseControl b (PureLoggingT message m) whe
   liftBaseWith     = defaultLiftBaseWith
   restoreM         = defaultRestoreM
 
+-- | Run a computation with access to logging by accumulating a log under its
+-- 'Monoid' instance.
 runPureLoggingT
   :: Monoid log
   => PureLoggingT log m a -> m (a,log)
@@ -403,8 +405,10 @@ instance MonadState s m => MonadState s (PureLoggingT log m) where
   put = lift . put
 
 --------------------------------------------------------------------------------
+-- | A 'MonadLog' handler that throws messages away.
 newtype DiscardLoggingT message m a =
-  DiscardLoggingT {discardLogging :: m a}
+  DiscardLoggingT {discardLogging :: m a -- ^ Run a 'MonadLog' computation by throwing away all log requests.
+                  }
   deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s,MonadBase b)
 
 instance MonadBaseControl b m => MonadBaseControl b (DiscardLoggingT message m) where
