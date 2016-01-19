@@ -239,6 +239,7 @@ instance MonadReader r m => MonadReader r (LoggingT message m) where
   local f (LoggingT m) = LoggingT (local f . m)
   reader f = lift (reader f)
 
+-- | The main instance of 'MonadLog', which dispatches 'logMessage' calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
   logMessage m = LoggingT (\f -> f m)
 
@@ -377,6 +378,7 @@ instance MonadTrans (PureLoggingT log) where
 
 instance (Functor f, MonadFree f m) => MonadFree f (PureLoggingT log m)
 
+-- | A pure handler of 'MonadLog' that accumulates log messages under the structure of their 'Monoid' instance.
 instance (Monad m, Monoid log) => MonadLog log (PureLoggingT log m) where
   logMessage message = mkPureLoggingT (return ((), message)) 
 
@@ -397,6 +399,7 @@ instance MonadTrans (DiscardLoggingT message) where
 
 instance (Functor f,MonadFree f m) => MonadFree f (DiscardLoggingT message m)
 
+-- | The trivial instance of 'MonadLog' that simply discards all messages logged.
 instance Monad m => MonadLog message (DiscardLoggingT message m) where
   logMessage _ = return ()
 
