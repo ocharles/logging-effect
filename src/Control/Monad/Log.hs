@@ -58,7 +58,7 @@ module Control.Monad.Log
          PureLoggingT(..), runPureLoggingT,
 
          -- * Discarding logs
-         DiscardLoggingT, discardLogging
+         DiscardLoggingT(DiscardLoggingT,discardLogging)
 
          -- * Aside: An @mtl@ refresher
          -- $tutorialMtl
@@ -421,6 +421,13 @@ instance MonadState s m => MonadState s (PureLoggingT log m) where
 
 --------------------------------------------------------------------------------
 -- | A 'MonadLog' handler that throws messages away.
+--
+-- The documentation may appear a bit confusing, but note that the full type of
+-- 'discardLogging' is:
+--
+-- @
+-- 'discardLogging' :: 'DiscardLoggingT' messsage m a -> m a
+-- @
 newtype DiscardLoggingT message m a =
   DiscardLoggingT {discardLogging :: m a -- ^ Run a 'MonadLog' computation by throwing away all log requests.
                   }
