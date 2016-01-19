@@ -238,7 +238,7 @@ instance MonadReader r m => MonadReader r (LoggingT message m) where
   local f (LoggingT m) = LoggingT (local f . m)
   reader f = lift (reader f)
 
--- | The main instance of 'MonadLog', which dispatches 'logMessage' calls to a 'Handler'.
+-- | The main instance of 'MonadLog', which replaces calls to 'logMessage' with calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
   logMessage m = LoggingT (\f -> f m)
 
@@ -432,7 +432,7 @@ instance Monad m => MonadLog message (DiscardLoggingT message m) where
 
 {- $intro
 
-"Control.Monad.Log" provides a toolkit for general logging in Haskell programs
+@logging-effect@ provides a toolkit for general logging in Haskell programs
 and libraries. The library consists of the type class 'MonadLog' to add log
 output to computations, and this library comes with a set of instances to help
 you decide how this logging should be performed. There are predefined handlers
@@ -450,18 +450,18 @@ relational database).
 
 {- $tutorialIntro
 
-"Control.Monad.Log" is designed to be used via the 'MonadLog' type class and
+@logging-effect@ is designed to be used via the 'MonadLog' type class and
 encourages an "mtl" style approach to programming. If you're not familiar with
-the @mtl@ library, this approach uses type classes to keep the choice of monad
+the @mtl@, this approach uses type classes to keep the choice of monad
 polymorphic as you program, and you later choose a specific monad transformer
 stack when you execute your program. For more information, see
-<#tutorialMtl Aside: An mtl refresher>.
+<#tutorialMtl Aside: A mtl refresher>.
 
 -}
 
 {- $tutorialMtl #tutorialMtl#
 
-If you are already familiar with @mtl@ you can skip this section. This is not
+If you are already familiar with the @mtl@ you can skip this section. This is not
 designed to be an exhaustive introduction to the @mtl@ library, but hopefully
 via a short example you'll have a basic familarity with the approach.
 
@@ -470,14 +470,14 @@ actions. One way to do this would be to work with monad transformers, stacking
 'StateT' on top of 'IO':
 
 @
-import Control.Monad.Trans.State.Strict (StateT, get, put)
-import Control.Monad.Trans.Class (lift)
+import "Control.Monad.Trans.State.Strict" ('StateT', 'get', 'put')
+import "Control.Monad.Trans.Class" ('lift')
 
-transformersProgram :: StateT Int IO ()
+transformersProgram :: 'StateT' 'Int' 'IO' ()
 transformersProgram = do
-  stateNow <- get
-  lift launchMissles
-  put (stateNow + 42)
+  stateNow <- 'get'
+  'lift' launchMissles
+  'put' (stateNow + 42)
 @
 
 This is OK, but it's not very flexible. For example, the transformers library
@@ -493,17 +493,17 @@ With the @mtl@, we instead program to an /abstract specification/ of the effects
 we require, and we postpone the choice of handler until the point when the
 computation is ran.
 
-Rewriting the @transformersProgram@ using @mtl@, we have the following:
+Rewriting the @transformersProgram@ using the @mtl@, we have the following:
 
 @
-import Control.Monad.State.Class (MonadState(get, put))
-import Control.Monad.IO.Class (MonadIO(liftIO))
+import "Control.Monad.State.Class" ('MonadState'('get', 'put'))
+import "Control.Monad.IO.Class" ('MonadIO'('liftIO'))
 
-mtlProgram :: (MonadState Int m, MonadIO m) => m ()
+mtlProgram :: ('MonadState' 'Int' m, 'MonadIO' m) => m ()
 mtlProgram = do
-  stateNow <- get
-  liftIO launchMissles
-  put (stateNow + 42)
+  stateNow <- 'get'
+  'liftIO' launchMissles
+  'put' (stateNow + 42)
 @
 
 Notice that @mtlProgram@ doesn't specify a concrete choice of state monad. The
@@ -511,10 +511,10 @@ Notice that @mtlProgram@ doesn't specify a concrete choice of state monad. The
 make the choice of a specific monad stack when we run our program:
 
 @
-import Control.Monad.Trans.State.Strict (execStateT)
+import "Control.Monad.Trans.State.Strict" ('execStateT')
 
-main :: IO ()
-main = execStateT mtlProgram 99
+main :: 'IO' ()
+main = 'execStateT' mtlProgram 99
 @
 
 Here we chose the strict variant via 'execStateT'. Using 'execStateT'
@@ -535,10 +535,10 @@ that you intend to log. In this example, we will log 'Text' that is
 wrapped in the 'WithSeverity'.
 
 @
-testApp :: MonadLog (WithSeverity Text) m => m ()
+testApp :: 'MonadLog' ('WithSeverity' 'PP.Doc') m => m ()
 testApp = do
-  logMessage (WithSeverity Info "Don't mind me")
-  logMessage (WithSeverity Error "But do mind me!")
+  logMessage ('WithSeverity' 'Informational' "Don't mind me")
+  logMessage ('WithSeverity' 'Error' "But do mind me!")
 @
 
 Note that this does /not/ specify where the logs "go", we'll address that when
@@ -557,18 +557,18 @@ For example, we can easily fulfill the 'MonadLog' type class by just using
 'print' as our 'Handler':
 
 >>> runLoggingT testApp print
-WithSeverity Info "Don't mind me"
-WithSeverity Error "But do mind me!"
+WithSeverity {msgSeverity = Informational, discardSeverity = "Don't mind me"}
+WithSeverity {msgSeverity = Error, discardSeverity = "But do mind me!"}
 
-The log messages are printed according to their 'Show' instances, and while
-this works is not particularly user friendly. As 'Handler's are just functions
+The log messages are printed according to their 'Show' instances, and - while
+this works - it is not particularly user friendly. As 'Handler's are just functions
 from log messages to monadic actions, we can easily reformat log messages.
-"logging-effect" comes with a few "log message transformers" (such as
+@logging-effect@ comes with a few "log message transformers" (such as
 'WithSeverity'), and each of these message transformers has a canonical way to
 render in a human-readable format:
 
 >>> runLoggingT testApp (print . renderWithSeverity id)
-[Info] Don't mind me
+[Informational] Don't mind me
 [Error] But do mind me!
 
 That's looking much more usable - and in fact this approach is probably fine for
@@ -580,17 +580,17 @@ whenever 'logMessage' is called. By providing 'print' as a 'Handler', our
 application will actually block until the log is complete. This is undesirable
 for high performance applications, where it's much better to log asynchronously.
 
-"logging-effect" comes with "batched handlers" for this problem. Batched handlers
+@logging-effect@ comes with "batched handlers" for this problem. Batched handlers
 are handlers that log asynchronously, are flushed periodically, and have maximum
 memory impact. Batched handlers are created with 'withBatchedHandler', though
 if you are just logging to file descriptors you can also use 'withFDHandler'.
 We'll use this next to log to @STDOUT@:
 
 @
-main :: IO ()
+main :: 'IO' ()
 main =
-  withFDHandler defaultBatchingOptions stdout $ \logToStdout ->
-  runLoggingT testApp logToStdout
+  'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \logToStdout ->
+  'runLoggingT' testApp ('logToStdout' . 'renderWithSeverity' 'id')
 @
 
 Finally, as 'Handler's are just functions (we can't stress this enough!) you
@@ -603,18 +603,18 @@ error messages:
 @
 main :: IO ()
 main = do
-  'withFDHandler' 'defaultBatchingOptions' 'stderr' $ \stderrHandler ->
-  'withFDHandler' 'defaultBatchingOptions' 'stdout' $ \stdoutHandler ->
+  'withFDHandler' 'defaultBatchingOptions' 'stderr' 0.4 80 $ \stderrHandler ->
+  'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \stdoutHandler ->
   'runLoggingT' m
               (\\message ->
                  case 'msgSeverity' message of
-                   'Error' -> stderrHandler  ("T".'T.map' 'toUpper' ('discardSeverity' message))
-                   _ -> stdoutHandler ('renderWithSeverity' id message))
+                   'Error' -> stderrHandler ('discardSeverity' message)
+                   _     -> stdoutHandler ('renderWithSeverity' id message))
 @
 
 >>> main
-STDOUT: [Info] Don't mind me!
-STDERR: BUT DO MIND ME!
+[Informational] Don't mind me!
+BUT DO MIND ME!
 
 -}
 
@@ -622,7 +622,7 @@ STDERR: BUT DO MIND ME!
 
 So far we've considered very small applications where all log messages fit nicely
 into a single type. However, as applications grow and begin to reuse components,
-it's unlikely that this approach will scale. 'Control.Monad.Log' comes with a
+it's unlikely that this approach will scale. @logging-effect@ comes with a
 mapping function - 'mapLogMessage' - which allows us to map log messages from one
 type to another (just like how we can use 'map' to change elements of a list).
 
@@ -631,29 +631,29 @@ For example, we've already seen the basic @testApp@ computation above that used
 have some older code that doesn't yet have any severity information:
 
 @
-legacyCode :: MonadLog Text m => m ()
-legacyCode = logMessage "Does anyone even remember writing this function?"
+legacyCode :: 'MonadLog' 'PP.Doc' m => m ()
+legacyCode = 'logMessage' "Does anyone even remember writing this function?"
 @
 
-Here @legacyCode@ is only logging 'Text', while our @testApp@ is logging
-'WithSeverity' 'Text'. What happens if we compose these programs?
+Here @legacyCode@ is only logging 'PP.Doc', while our @testApp@ is logging
+'WithSeverity' 'PP.Doc'. What happens if we compose these programs?
 
 >>> :t testApp >> legacyCode
-  Couldn't match type ‘[Char]’ with ‘WithSeverity Text’
+  Couldn't match type ‘Doc’ with ‘WithSeverity Doc’
 
 Whoops! 'MonadLog' has /functional dependencies/ on the type class which means
 that there can only be a single way to log per monad. One solution might be
 to 'lift' one set of logs into the other:
 
 >>> :t testApp >> lift legacyCode
-  :: (MonadTrans t, MonadLog Text m, MonadLog (WithSeverity Text) (t m)) => t m ()
+  :: (MonadTrans t, MonadLog Doc m, MonadLog (WithSeverity Doc) (t m)) => t m ()
 
 And indeed, this is /a/ solution, but it's not a particularly nice one.
 
 Instead, we can map both of these computations into a common log format:
 
 >>> :t mapLogMessage Left testApp >> mapLogMessage Right (logMessage "Hello")
-  :: (MonadLog (Either (WithSeverity Text) Text) m) => m ()
+  :: (MonadLog (Either (WithSeverity Doc) Doc) m) => m ()
 
 This is a trivial way of combining two different types of log message. In larger
 applications you will probably want to define a new sum-type that combines all of
