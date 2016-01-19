@@ -14,6 +14,7 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import System.IO (stdout)
 import Control.Concurrent.Async.Lifted
 import Data.Foldable (sequenceA_)
+import Data.Time
 
 main :: IO ()
 main = defaultMain [ bgroup "log10k" [ bench "logging-effect" (nfIO (LoggingEffect.runLoggingT loggingEffectLog loggingEffectStdoutHandler))
@@ -29,13 +30,15 @@ main = defaultMain [ bgroup "log10k" [ bench "logging-effect" (nfIO (LoggingEffe
                                                                                       (h . LoggingEffect.renderWithSeverity id)))
                                      , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT (nThreads 10 (MonadLogger.logDebugNS "?" "Log message"))))]
                    , bgroup "map-and-log" [ bench "map-once" (nfIO (LoggingEffect.runLoggingT (LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id loggingEffectLog) loggingEffectStdoutHandler))]
-                   ]
+                   , bgroup "discard-logs" [ bench "logging-effect" (nfIO (LoggingEffect.discardLogging loggingEffectLog))
+                                           , bench "monad-logger" (nfIO (MonadLogger.runNoLoggingT monadLoggerLog))]]
 
 loggingEffectStdoutHandler = PP.putDoc . (<> PP.linebreak) . LoggingEffect.renderWithSeverity id
 
 loggingEffectLog :: LoggingEffect.MonadLog (LoggingEffect.WithSeverity PP.Doc) m => m ()
 loggingEffectLog = LoggingEffect.logMessage (LoggingEffect.WithSeverity LoggingEffect.Debug "Log message")
 
+monadLoggerLog :: MonadLogger.MonadLogger m => m ()
 monadLoggerLog = MonadLogger.logDebugNS "?" "Log message"
 
 monadLoggerStdoutHandler = \_ _ level str -> BS.putStrLn (fromLogStr (toLogStr (show level) <> str))

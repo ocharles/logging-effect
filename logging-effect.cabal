@@ -27,5 +27,5 @@ library
 Benchmark benchmark-logging-effect
   type: exitcode-stdio-1.0
   main-is: Benchmark.hs
-  build-depends: base, logging-effect, criterion, monad-logger, fast-logger, text, bytestring, wl-pprint-text, lifted-async
+  build-depends: base, logging-effect, criterion, monad-logger, fast-logger, text, bytestring, wl-pprint-text, lifted-async, time
   ghc-options: -O2

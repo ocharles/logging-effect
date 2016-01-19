@@ -40,7 +40,7 @@ module Control.Monad.Log
          -- * Message transformers
          PP.renderPretty,
          -- ** Timestamps
-         WithTimestamp(..), withTimestamps, renderWithTimestamp,
+         WithTimestamp(..), timestamp, renderWithTimestamp,
          -- ** Severity
          WithSeverity(..), Severity(..), renderWithSeverity,
          -- ** Call stacks
@@ -153,6 +153,15 @@ renderWithSeverity k (WithSeverity u a) =
 
 --------------------------------------------------------------------------------
 -- | Add a timestamp to log messages.
+--
+-- Note that while most log message transformers are designed to be used at the
+-- point of logging, this transformer is best applied within the handler.
+-- This is advised as timestamps are generally applied uniformly, so doing it
+-- in the handler is fine (no extra information or context of the program is
+-- required). The other reason is that logging with a timestamp requires
+-- 'MonadIO' - while the rest of your computation is free to use 'MonadIO',
+-- it's best to avoid incurring this constraint as much as possible, as it is
+-- generally untestable.
 data WithTimestamp a =
   WithTimestamp {discardTimestamp :: a -- ^ Retireve the time a message was logged.
                 ,msgTimestamp :: UTCTime -- ^ View the underlying message.
@@ -166,24 +175,17 @@ data WithTimestamp a =
 -- [Tue, 19 Jan 2016 11:29:42 UTC] Setting target speed to plaid
 renderWithTimestamp :: (UTCTime -> String)
                        -- ^ How to format the timestamp.
-                    -> (a -> Text)
+                    -> (a -> PP.Doc)
                        -- ^ How to render the rest of the message.
-                    -> (WithTimestamp a -> Text)
+                    -> (WithTimestamp a -> PP.Doc)
 renderWithTimestamp formatter k (WithTimestamp a t) =
-  "[" <> pack (formatter t) <> "] " <> k a
+  PP.brackets (PP.text (LT.pack (formatter t))) PP.<+> PP.align (k a)
 
--- TODO Is this faster with a custom handler?
--- logMessage msg = liftIO getCurrentTime >>= \t -> lift (logMessage (WithTimestamp t msg))
--- | Add timestamps to all messages logged. Timestamps will be calculated
--- synchronously when log entries are emitted.
-withTimestamps :: (MonadLog (WithTimestamp message) m,MonadIO m)
-               => LoggingT message m a -> m a
-withTimestamps m =
-  runLoggingT
-    m
-    (\msg ->
-       do now <- liftIO getCurrentTime
-          logMessage (WithTimestamp msg now))
+-- | Add the current time as a timestamp to a message.
+timestamp :: (MonadIO m) => a -> m (WithTimestamp a)
+timestamp msg = do
+       now <- liftIO getCurrentTime
+       pure (WithTimestamp msg now)
 
 --------------------------------------------------------------------------------
 data WithCallStack a = WithCallStack { msgCallStack :: CallStack
