@@ -352,7 +352,10 @@ withBatchedHandler BatchingOptions{..} flush k =
 
 -- | 'withFDHandler' creates a new 'Handler' that will append a given file
 -- descriptor (or 'Handle', as it is known in the "base" library). Note that
--- this 'Handler' requires log messages to be of type 'Text'.
+-- this 'Handler' requires log messages to be of type 'PP.Doc'. This abstractly
+-- specifies a pretty-printing for log lines. The two arguments two
+-- 'withFDHandler' determine how this pretty-printing should be realised
+-- when outputting log lines.
 --
 -- These 'Handler's asynchronously log messages to the given file descriptor,
 -- rather than blocking.
@@ -548,8 +551,8 @@ To add logging to your applications, you will need to make two changes.
 
 First, use the 'MonadLog' type class to indicate that a computation has
 access to logging. 'MonadLog' is parameterized on the type of messages
-that you intend to log. In this example, we will log 'Text' that is
-wrapped in the 'WithSeverity'.
+that you intend to log. In this example, we will log a 'PP.Doc' that is
+wrapped in 'WithSeverity'.
 
 @
 testApp :: 'MonadLog' ('WithSeverity' 'PP.Doc') m => m ()
