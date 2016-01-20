@@ -1,12 +1,13 @@
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE AutoDeriveTypeable #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -34,7 +35,12 @@ module Control.Monad.Log
          -- $tutorial-composing
 
          -- * @MonadLog@
-         MonadLog(..), mapLogMessage,
+         logMessage, mapLogMessage,
+         MonadLog(..),
+
+         -- * Convenience logging combinators
+         -- $convenience
+         logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency,
 
          -- * Message transformers
          PP.renderPretty,
@@ -92,11 +98,51 @@ import System.IO (Handle)
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
 
+-- For 'MonadLog' pass-through instances.
+import qualified Control.Monad.Trans.Identity as Identity
+import qualified Control.Monad.Trans.Reader as Reader
+import qualified Control.Monad.Trans.State.Lazy as LazyState
+import qualified Control.Monad.Trans.State.Strict as StrictState
+import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
+import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
+import qualified Control.Monad.Trans.Maybe as Maybe
+import qualified Control.Monad.Trans.Except as Except
+import qualified Control.Monad.Trans.Error as Error
+import qualified Control.Monad.Trans.RWS.Lazy as LazyRWS
+import qualified Control.Monad.Trans.RWS.Strict as StrictRWS
+import qualified Control.Monad.Trans.Cont as Cont
+import qualified Control.Monad.Trans.List as List
+import qualified Control.Monad.Trans.Free as Free
+import qualified Control.Monad.Trans.Free.Church as Free
+import qualified Control.Monad.Catch.Pure as Exceptions
+
 --------------------------------------------------------------------------------
 -- | The class of monads that support logging.
+--
+-- Laws:
+--
+-- /Monoid homomorphism/:
+--
+-- @
+-- 'logMessageFree' a '*>' 'logMessageFree' b = 'logMessageFree' (a '<>' b)
+-- @
 class Monad m => MonadLog message m | m -> message where
+  -- | Fold log messages into this computation. Looking to just log a
+  -- message? You probably want 'logMessage'.
+  --
+  -- The perhaps strange type here allows us to construct a monoid out of /any/
+  -- type of log message. You can think of this as the simpler type:
+  --
+  -- @
+  -- logMessageFree :: [message] -> m ()
+  -- @
+  logMessageFree :: (forall n. Monoid n => (message -> n) -> n) -> m ()
+  default logMessageFree :: (m ~ t n, MonadTrans t, MonadLog message n) => (forall mon. Monoid mon => (message -> mon) -> mon) -> m ()
+  logMessageFree inj = lift (logMessageFree inj)
+
   -- | Append a message to the log for this computation.
-  logMessage :: message -> m ()
+logMessage :: MonadLog message m => message -> m ()
+logMessage m = logMessageFree (\inject -> inject m)
 
 -- | Re-interpret the log messages in one computation. This can be useful to
 -- embed a computation with one log type in a larger general computation.
@@ -106,6 +152,23 @@ mapLogMessage
 mapLogMessage f m =
   runLoggingT m
               (logMessage . f)
+
+instance MonadLog message m => MonadLog message (Identity.IdentityT m)
+instance MonadLog message m => MonadLog message (Reader.ReaderT r m)
+instance MonadLog message m => MonadLog message (StrictState.StateT s m)
+instance MonadLog message m => MonadLog message (LazyState.StateT s m)
+instance (Monoid w, MonadLog message m) => MonadLog message (StrictWriter.WriterT w m)
+instance (Monoid w, MonadLog message m) => MonadLog message (LazyWriter.WriterT w m)
+instance MonadLog message m => MonadLog message (Maybe.MaybeT m)
+instance MonadLog message m => MonadLog message (Except.ExceptT e m)
+instance (Error.Error e, MonadLog message m) => MonadLog message (Error.ErrorT e m)
+instance (Monoid w, MonadLog message m) => MonadLog message (StrictRWS.RWST r w s m)
+instance (Monoid w, MonadLog message m) => MonadLog message (LazyRWS.RWST r w s m)
+instance MonadLog message m => MonadLog message (Cont.ContT r m)
+instance MonadLog message m => MonadLog message (List.ListT m)
+instance (Functor f, MonadLog message m) => MonadLog message (Free.FreeT f m)
+instance (Functor f, MonadLog message m) => MonadLog message (Free.FT f m)
+instance MonadLog message m => MonadLog message (Exceptions.CatchT m)
 
 --------------------------------------------------------------------------------
 -- | Add \"Severity\" information to a log message. This is often used to convey
@@ -141,6 +204,54 @@ renderWithSeverity
   :: (a -> PP.Doc) -> (WithSeverity a -> PP.Doc)
 renderWithSeverity k (WithSeverity u a) =
   PP.brackets (PP.pretty u) PP.<+> PP.align (k a)
+
+-- | @
+-- 'logDebug' = 'logMessage' . 'WithSeverity' 'Debug'
+-- @
+logDebug :: MonadLog (WithSeverity a) m => a -> m ()
+logDebug = logMessage . WithSeverity Debug
+
+-- | @
+-- 'logInfo' = 'logMessage' . 'WithSeverity' 'Informational'
+-- @
+logInfo :: MonadLog (WithSeverity a) m => a -> m ()
+logInfo      = logMessage . WithSeverity Informational
+
+-- | @
+-- 'logNotice' = 'logMessage' . 'WithSeverity' 'Notice'
+-- @
+logNotice :: MonadLog (WithSeverity a) m => a -> m ()
+logNotice    = logMessage . WithSeverity Notice
+
+-- | @
+-- 'logWarning' = 'logMessage' . 'WithSeverity' 'Warning'
+-- @
+logWarning :: MonadLog (WithSeverity a) m => a -> m ()
+logWarning   = logMessage . WithSeverity Warning
+
+-- | @
+-- 'logError' = 'logMessage' . 'WithSeverity' 'Error'
+-- @
+logError :: MonadLog (WithSeverity a) m => a -> m ()
+logError     = logMessage . WithSeverity Error
+
+-- | @
+-- 'logCritical' = 'logMessage' . 'WithSeverity' 'Critical'
+-- @
+logCritical :: MonadLog (WithSeverity a) m => a -> m ()
+logCritical  = logMessage . WithSeverity Critical
+
+-- | @
+-- 'logAlert' = 'logMessage' . 'WithSeverity' 'Alert'
+-- @
+logAlert :: MonadLog (WithSeverity a) m => a -> m ()
+logAlert     = logMessage . WithSeverity Alert
+
+-- | @
+-- 'logEmergency' = 'logMessage' . 'WithSeverity' 'Emergency'
+-- @
+logEmergency :: MonadLog (WithSeverity a) m => a -> m ()
+logEmergency = logMessage . WithSeverity Emergency
 
 --------------------------------------------------------------------------------
 -- | Add a timestamp to log messages.
@@ -248,9 +359,15 @@ instance MonadReader r m => MonadReader r (LoggingT message m) where
   local f (LoggingT (ReaderT m)) = LoggingT (ReaderT (local f . m))
   reader f = lift (reader f)
 
+newtype Ap m = Ap { runAp :: m () }
+
+instance Applicative m => Monoid (Ap m) where
+  mempty = Ap (pure ())
+  Ap l `mappend` Ap r = Ap (l *> r)
+
 -- | The main instance of 'MonadLog', which replaces calls to 'logMessage' with calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
-  logMessage m = LoggingT (ReaderT (\f -> f m))
+  logMessageFree foldMap = LoggingT (\handler -> runAp (foldMap (Ap . handler)))
 
 instance MonadRWS r w s m => MonadRWS r w s (LoggingT message m)
 
@@ -413,7 +530,7 @@ instance (Functor f, MonadFree f m) => MonadFree f (PureLoggingT log m)
 
 -- | A pure handler of 'MonadLog' that accumulates log messages under the structure of their 'Monoid' instance.
 instance (Monad m, Monoid log) => MonadLog log (PureLoggingT log m) where
-  logMessage message = mkPureLoggingT (return ((), message))
+  logMessageFree foldMap = mkPureLoggingT (return ((), foldMap id))
 
 instance MonadRWS r w s m => MonadRWS r w s (PureLoggingT message m)
 
@@ -448,7 +565,7 @@ instance (Functor f,MonadFree f m) => MonadFree f (DiscardLoggingT message m)
 
 -- | The trivial instance of 'MonadLog' that simply discards all messages logged.
 instance Monad m => MonadLog message (DiscardLoggingT message m) where
-  logMessage _ = return ()
+  logMessageFree _ = return ()
 
 {- $intro
 
@@ -609,7 +726,7 @@ We'll use this next to log to @STDOUT@:
 @
 main :: 'IO' ()
 main =
-  'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \logToStdout ->
+  'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \\logToStdout ->
   'runLoggingT' testApp ('logToStdout' . 'renderWithSeverity' 'id')
 @
 
@@ -623,8 +740,8 @@ error messages:
 @
 main :: IO ()
 main = do
-  'withFDHandler' 'defaultBatchingOptions' 'stderr' 0.4 80 $ \stderrHandler ->
-  'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \stdoutHandler ->
+  'withFDHandler' 'defaultBatchingOptions' 'stderr' 0.4 80 $ \\stderrHandler ->
+  'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \\stdoutHandler ->
   'runLoggingT' m
               (\\message ->
                  case 'msgSeverity' message of
@@ -679,5 +796,15 @@ This is a trivial way of combining two different types of log message. In larger
 applications you will probably want to define a new sum-type that combines all of
 your log messages, and generally sticking with a single log message type per
 application.
+
+-}
+
+{- $convenience
+
+While @logging-effect@ tries to be as general as possible, there is a fairly
+common case of logging, namely basic messages with an indication of severity.
+These combinators assume that you will be using 'WithSeverity' at the outer-most
+level of your log message stack, though no make no assumptions at what is inside
+your log messages. There is a @logX@ combinator for each level in 'Severity'.
 
 -}
