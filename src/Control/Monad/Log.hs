@@ -60,7 +60,7 @@ module Control.Monad.Log
          -- * Discarding logs
          DiscardLoggingT(DiscardLoggingT,discardLogging)
 
-         -- * Aside: An @mtl@ refresher
+         -- * Aside: A @mtl@ refresher
          -- $tutorialMtl
        ) where
 
