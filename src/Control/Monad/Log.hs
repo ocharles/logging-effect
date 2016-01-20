@@ -154,8 +154,8 @@ renderWithSeverity k (WithSeverity u a) =
 -- it's best to avoid incurring this constraint as much as possible, as it is
 -- generally untestable.
 data WithTimestamp a =
-  WithTimestamp {discardTimestamp :: a -- ^ Retireve the time a message was logged.
-                ,msgTimestamp :: UTCTime -- ^ View the underlying message.
+  WithTimestamp {discardTimestamp :: a  -- ^ View the underlying message.
+                ,msgTimestamp :: UTCTime -- ^ Retireve the time a message was logged.
                 }
   deriving (Functor,Traversable,Foldable)
 
