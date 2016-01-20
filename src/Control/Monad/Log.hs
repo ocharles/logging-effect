@@ -141,7 +141,7 @@ class Monad m => MonadLog message m | m -> message where
   default logMessageFree :: (m ~ t n, MonadTrans t, MonadLog message n) => (forall mon. Monoid mon => (message -> mon) -> mon) -> m ()
   logMessageFree inj = lift (logMessageFree inj)
 
-  -- | Append a message to the log for this computation.
+-- | Append a message to the log for this computation.
 logMessage :: MonadLog message m => message -> m ()
 logMessage m = logMessageFree (\inject -> inject m)
 
@@ -178,7 +178,7 @@ data WithSeverity a =
   WithSeverity {msgSeverity :: Severity -- ^ Retrieve the 'Severity' a message.
                ,discardSeverity :: a -- ^ View the underlying message.
                }
-  deriving (Eq,Ord,Read,Show,Functor)
+  deriving (Eq,Ord,Read,Show,Functor,Traversable,Foldable)
 
 -- | Classes of severity for log messages. These have been chosen to match
 -- @syslog@ severity levels
@@ -269,7 +269,7 @@ data WithTimestamp a =
   WithTimestamp {discardTimestamp :: a  -- ^ View the underlying message.
                 ,msgTimestamp :: UTCTime -- ^ Retireve the time a message was logged.
                 }
-  deriving (Functor,Traversable,Foldable)
+  deriving (Eq,Ord,Read,Show,Functor,Traversable,Foldable)
 
 -- | Given a way to render the underlying message @a@ and a way to format
 -- 'UTCTime', render a message with its timestamp.
