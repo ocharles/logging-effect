@@ -26,9 +26,9 @@ main = defaultMain [ bgroup "log10k" [ bench "logging-effect" (nfIO (LoggingEffe
                                      , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT monadLoggerLog))]
                    , bgroup "log10k-batched-async"
                             [ bench "logging-effect" (nfIO (LoggingEffect.withFDHandler LoggingEffect.defaultBatchingOptions stdout 0.4 80 $ \h ->
-                                                            LoggingEffect.runLoggingT (nThreads 10 loggingEffectLog)
+                                                            LoggingEffect.runLoggingT (nThreads 10 (replicateM_ 10 loggingEffectLog))
                                                                                       (h . LoggingEffect.renderWithSeverity id)))
-                                     , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT (nThreads 10 (MonadLogger.logDebugNS "?" "Log message"))))]
+                                     , bench "monad-logger" (nfIO (MonadLogger.runStdoutLoggingT (nThreads 10 (replicateM_ 10 $ MonadLogger.logDebugNS "?" "Log message"))))]
                    , bgroup "map-and-log" [ bench "map-once" (nfIO (LoggingEffect.runLoggingT (LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id $ LoggingEffect.mapLogMessage id loggingEffectLog) loggingEffectStdoutHandler))]
                    , bgroup "discard-logs" [ bench "logging-effect" (nfIO (LoggingEffect.discardLogging loggingEffectLog))
                                            , bench "monad-logger" (nfIO (MonadLogger.runNoLoggingT monadLoggerLog))]]
