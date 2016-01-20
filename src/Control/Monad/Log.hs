@@ -70,6 +70,7 @@ module Control.Monad.Log
          -- $tutorialMtl
        ) where
 
+import Prelude hiding (foldMap)
 import Control.Applicative
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.STM
@@ -367,7 +368,7 @@ instance Applicative m => Monoid (Ap m) where
 
 -- | The main instance of 'MonadLog', which replaces calls to 'logMessage' with calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
-  logMessageFree foldMap = LoggingT (\handler -> runAp (foldMap (Ap . handler)))
+  logMessageFree foldMap = LoggingT (ReaderT (\handler -> runAp (foldMap (Ap . handler))))
 
 instance MonadRWS r w s m => MonadRWS r w s (LoggingT message m)
 
