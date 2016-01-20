@@ -60,7 +60,7 @@ module Control.Monad.Log
          -- * Discarding logs
          DiscardLoggingT(DiscardLoggingT,discardLogging)
 
-         -- * Aside: A @mtl@ refresher
+         -- * Aside: An @mtl@ refresher
          -- $tutorialMtl
        ) where
 
@@ -475,7 +475,7 @@ encourages an "mtl" style approach to programming. If you're not familiar with
 the @mtl@, this approach uses type classes to keep the choice of monad
 polymorphic as you program, and you later choose a specific monad transformer
 stack when you execute your program. For more information, see
-<#tutorialMtl Aside: A mtl refresher>.
+<#tutorialMtl Aside: An mtl refresher>.
 
 -}
 
