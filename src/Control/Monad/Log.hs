@@ -132,11 +132,11 @@ data Severity =
 instance PP.Pretty Severity where
   pretty = PP.text . LT.pack . show
 
--- | Given a way to render the underlying message @a@ render a message with its
--- timestamp.
+-- | Given a way to render the underlying message @a@, render a message with its
+-- severity.
 --
--- >>> renderWithSeverity id Debug (WithSeverity Info "Flux capacitor is functional")
--- [Info] Flux capacitor is functional
+-- >>> renderWithSeverity id (WithSeverity Informational "Flux capacitor is functional")
+-- [Informational] Flux capacitor is functional
 renderWithSeverity
   :: (a -> PP.Doc) -> (WithSeverity a -> PP.Doc)
 renderWithSeverity k (WithSeverity u a) =
