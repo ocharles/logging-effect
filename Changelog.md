@@ -8,8 +8,8 @@
   with the same signature outside the type class.
 
 - `MonadLog` now comes with a law that states that logging is a monoid
-  homomorphism over the free monoid of log messages. This essentially means that
-  you have to treat all log messages uniformly.
+  homomorphism. This essentially means that you have to treat all log messages
+  uniformly.
 
 - Pass-through instances for all "stock" monad transformers have been added
   (all of `transformers`, `CatchT` from exceptions and `FreeT`/`FT` from `free`).
