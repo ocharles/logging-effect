@@ -14,7 +14,7 @@ library
   exposed-modules:     Control.Monad.Log
   other-extensions:    ViewPatterns, OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, FunctionalDependencies, PatternSynonyms
   build-depends:       base >=4.8 && <4.9
-                     , async >=2.0 && <2.1
+                     , async >=2.0 && <2.2
                      , transformers >=0.4 && <0.5
                      , text >=1.2 && <1.3
                      , time >=1.5 && <1.6
