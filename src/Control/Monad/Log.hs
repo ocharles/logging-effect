@@ -47,7 +47,7 @@ module Control.Monad.Log
          -- ** Timestamps
          WithTimestamp(..), timestamp, renderWithTimestamp,
          -- ** Severity
-         WithSeverity(..), Severity(..), renderWithSeverity,
+         WithSeverity(..), Severity(..), renderWithSeverity, discardUpToHandler,
          -- ** Call stacks
          WithCallStack(..), withCallStack, renderWithCallStack,
 
@@ -75,7 +75,7 @@ import Control.Applicative
 import Control.Concurrent.Async (async, wait)
 import Control.Concurrent.STM
 import Control.Concurrent.STM.Delay
-import Control.Monad (MonadPlus, guard)
+import Control.Monad (MonadPlus, guard, when)
 import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow(..), MonadMask(..), MonadCatch(..), bracket)
 import Control.Monad.Cont.Class (MonadCont(..))
@@ -205,6 +205,15 @@ renderWithSeverity
   :: (a -> PP.Doc) -> (WithSeverity a -> PP.Doc)
 renderWithSeverity k (WithSeverity u a) =
   PP.brackets (PP.pretty u) PP.<+> PP.align (k a)
+
+-- | Modifies a handler to discard all log messages less severe than the given
+-- 'Severity'.
+discardUpToHandler
+  :: Applicative m
+  => Severity -> Handler m (WithSeverity msg) -> Handler m (WithSeverity msg)
+discardUpToHandler sev handler msg@(WithSeverity s _) =
+    when (sev >= s) $ handler msg
+
 
 -- | @
 -- 'logDebug' = 'logMessage' . 'WithSeverity' 'Debug'
