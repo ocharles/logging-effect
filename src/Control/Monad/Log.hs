@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE AutoDeriveTypeable #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFoldable #-}
@@ -93,8 +94,12 @@ import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
 import Data.Monoid
 import Data.Time (UTCTime, getCurrentTime)
+#if !MIN_VERSION_base(4, 9, 0)
 import GHC.SrcLoc (SrcLoc, showSrcLoc)
 import GHC.Stack
+#else
+import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
+#endif
 import System.IO (Handle)
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -297,7 +302,7 @@ timestamp msg = do
 -- parameters. For more information, see the GHC manual (section 9.14.4.5).
 data WithCallStack a = WithCallStack { msgCallStack :: CallStack
                                      , discardCallStack :: a }
-  deriving (Functor,Traversable,Foldable,Show,Eq)
+  deriving (Functor,Traversable,Foldable,Show)
 
 -- | Given a way to render the underlying message @a@ render a message with a
 -- callstack.
@@ -306,6 +311,11 @@ data WithCallStack a = WithCallStack { msgCallStack :: CallStack
 renderWithCallStack :: (a -> PP.Doc) -> WithCallStack a -> PP.Doc
 renderWithCallStack k (WithCallStack stack msg) =
   k msg PP.<$> PP.indent 2 (prettyCallStack (getCallStack stack))
+
+#if MIN_VERSION_base(4, 9, 0)
+showSrcLoc :: SrcLoc -> String
+showSrcLoc = prettySrcLoc
+#endif
 
 prettyCallStack :: [(String,SrcLoc)] -> PP.Doc
 prettyCallStack [] = "empty callstack"
