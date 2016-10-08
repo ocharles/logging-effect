@@ -1,4 +1,5 @@
 {-# LANGUAGE AutoDeriveTypeable #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -93,8 +94,14 @@ import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
 import Data.Monoid
 import Data.Time (UTCTime, getCurrentTime)
+#if __GLASGOW_HASKELL__ < 800
 import GHC.SrcLoc (SrcLoc, showSrcLoc)
+#endif
+#if __GLASGOW_HASKELL__ < 800
 import GHC.Stack
+#else
+import GHC.Stack hiding (prettyCallStack)
+#endif
 import System.IO (Handle)
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
@@ -297,7 +304,7 @@ timestamp msg = do
 -- parameters. For more information, see the GHC manual (section 9.14.4.5).
 data WithCallStack a = WithCallStack { msgCallStack :: CallStack
                                      , discardCallStack :: a }
-  deriving (Functor,Traversable,Foldable,Show,Eq)
+  deriving (Functor,Traversable,Foldable,Show)
 
 -- | Given a way to render the underlying message @a@ render a message with a
 -- callstack.
@@ -314,6 +321,12 @@ prettyCallStack (root:rest) =
   where prettyCallSite (f,loc) =
           PP.text (LT.pack f) <> ", called at " <>
           PP.text (LT.pack (showSrcLoc loc))
+
+#if __GLASGOW_HASKELL__ >= 800
+showSrcLoc :: SrcLoc -> String
+showSrcLoc = prettySrcLoc
+{-# INLINABLE showSrcLoc #-}
+#endif
 
 -- | Construct a 'WithCallStack' log message.
 --
