@@ -145,10 +145,12 @@ class Monad m => MonadLog message m | m -> message where
   logMessageFree :: (forall n. Monoid n => (message -> n) -> n) -> m ()
   default logMessageFree :: (m ~ t n, MonadTrans t, MonadLog message n) => (forall mon. Monoid mon => (message -> mon) -> mon) -> m ()
   logMessageFree inj = lift (logMessageFree inj)
+  {-# INLINEABLE logMessageFree #-}
 
 -- | Append a message to the log for this computation.
 logMessage :: MonadLog message m => message -> m ()
 logMessage m = logMessageFree (\inject -> inject m)
+{-# INLINEABLE logMessage #-}
 
 -- | Re-interpret the log messages in one computation. This can be useful to
 -- embed a computation with one log type in a larger general computation.
@@ -158,6 +160,7 @@ mapLogMessage
 mapLogMessage f m =
   runLoggingT m
               (logMessage . f)
+{-# INLINEABLE mapLogMessage #-}
 
 -- | Monadic version of 'mapLogMessage'. This can be used to annotate a
 -- message with something that can only be computed in a monad. See e.g.
@@ -167,6 +170,7 @@ mapLogMessageM
   => (message -> m message') -> LoggingT message m a -> m a
 mapLogMessageM f m =
   runLoggingT m ((>>= logMessage) . f)
+{-# INLINEABLE mapLogMessageM #-}
 
 instance MonadLog message m => MonadLog message (Identity.IdentityT m)
 instance MonadLog message m => MonadLog message (Reader.ReaderT r m)
@@ -225,48 +229,56 @@ renderWithSeverity k (WithSeverity u a) =
 -- @
 logDebug :: MonadLog (WithSeverity a) m => a -> m ()
 logDebug = logMessage . WithSeverity Debug
+{-# INLINEABLE logDebug #-}
 
 -- | @
 -- 'logInfo' = 'logMessage' . 'WithSeverity' 'Informational'
 -- @
 logInfo :: MonadLog (WithSeverity a) m => a -> m ()
 logInfo      = logMessage . WithSeverity Informational
+{-# INLINEABLE logInfo #-}
 
 -- | @
 -- 'logNotice' = 'logMessage' . 'WithSeverity' 'Notice'
 -- @
 logNotice :: MonadLog (WithSeverity a) m => a -> m ()
 logNotice    = logMessage . WithSeverity Notice
+{-# INLINEABLE logNotice #-}
 
 -- | @
 -- 'logWarning' = 'logMessage' . 'WithSeverity' 'Warning'
 -- @
 logWarning :: MonadLog (WithSeverity a) m => a -> m ()
 logWarning   = logMessage . WithSeverity Warning
+{-# INLINEABLE logWarning #-}
 
 -- | @
 -- 'logError' = 'logMessage' . 'WithSeverity' 'Error'
 -- @
 logError :: MonadLog (WithSeverity a) m => a -> m ()
 logError     = logMessage . WithSeverity Error
+{-# INLINEABLE logError #-}
 
 -- | @
 -- 'logCritical' = 'logMessage' . 'WithSeverity' 'Critical'
 -- @
 logCritical :: MonadLog (WithSeverity a) m => a -> m ()
 logCritical  = logMessage . WithSeverity Critical
+{-# INLINEABLE logCritical #-}
 
 -- | @
 -- 'logAlert' = 'logMessage' . 'WithSeverity' 'Alert'
 -- @
 logAlert :: MonadLog (WithSeverity a) m => a -> m ()
 logAlert     = logMessage . WithSeverity Alert
+{-# INLINEABLE logAlert #-}
 
 -- | @
 -- 'logEmergency' = 'logMessage' . 'WithSeverity' 'Emergency'
 -- @
 logEmergency :: MonadLog (WithSeverity a) m => a -> m ()
 logEmergency = logMessage . WithSeverity Emergency
+{-# INLINEABLE logEmergency #-}
 
 --------------------------------------------------------------------------------
 -- | Add a timestamp to log messages.
@@ -303,6 +315,7 @@ timestamp :: (MonadIO m) => a -> m (WithTimestamp a)
 timestamp msg = do
        now <- liftIO getCurrentTime
        pure (WithTimestamp msg now)
+{-# INLINEABLE timestamp #-}
 
 --------------------------------------------------------------------------------
 -- | Add call stack information to log lines.
@@ -370,24 +383,32 @@ instance MonadBaseControl b m => MonadBaseControl b (LoggingT message m) where
 runLoggingT
   :: LoggingT message m a -> Handler m message -> m a
 runLoggingT (LoggingT (ReaderT m)) handler = m handler
+{-# INLINEABLE runLoggingT #-}
 
 instance MonadTrans (LoggingT message) where
   lift = LoggingT . ReaderT . const
+  {-# INLINEABLE lift #-}
 
 instance MonadReader r m => MonadReader r (LoggingT message m) where
   ask = lift ask
+  {-# INLINEABLE ask #-}
   local f (LoggingT (ReaderT m)) = LoggingT (ReaderT (local f . m))
+  {-# INLINEABLE local #-}
   reader f = lift (reader f)
+  {-# INLINEABLE reader #-}
 
 newtype Ap m = Ap { runAp :: m () }
 
 instance Applicative m => Monoid (Ap m) where
   mempty = Ap (pure ())
+  {-# INLINEABLE mempty #-}
   Ap l `mappend` Ap r = Ap (l *> r)
+  {-# INLINEABLE mappend #-}
 
 -- | The main instance of 'MonadLog', which replaces calls to 'logMessage' with calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
   logMessageFree foldMap = LoggingT (ReaderT (\handler -> runAp (foldMap (Ap . handler))))
+  {-# INLINEABLE logMessageFree #-}
 
 instance MonadRWS r w s m => MonadRWS r w s (LoggingT message m)
 
@@ -402,6 +423,7 @@ mapLoggingT :: (forall x. (Handler m message -> m x) -> (Handler n message' -> n
             -> LoggingT message m a
             -> LoggingT message' n a
 mapLoggingT eta (LoggingT (ReaderT f)) = LoggingT (ReaderT (eta f))
+{-# INLINEABLE mapLoggingT #-}
 
 --------------------------------------------------------------------------------
 -- | Handlers are mechanisms to interpret the meaning of logging as an action
@@ -533,6 +555,7 @@ runPureLoggingT
   :: Monoid log
   => PureLoggingT log m a -> m (a,log)
 runPureLoggingT (MkPureLoggingT (StateT m)) = m mempty
+{-# INLINEABLE runPureLoggingT #-}
 
 mkPureLoggingT
   :: (Monad m,Monoid log)
@@ -542,22 +565,28 @@ mkPureLoggingT m =
     (StateT (\s ->
                do (a,l) <- m
                   return (a,s <> l)))
+{-# INLINEABLE mkPureLoggingT #-}
 
 instance MonadTrans (PureLoggingT log) where
   lift = MkPureLoggingT . lift
+  {-# INLINEABLE lift #-}
 
 instance (Functor f, MonadFree f m) => MonadFree f (PureLoggingT log m)
 
 -- | A pure handler of 'MonadLog' that accumulates log messages under the structure of their 'Monoid' instance.
 instance (Monad m, Monoid log) => MonadLog log (PureLoggingT log m) where
   logMessageFree foldMap = mkPureLoggingT (return ((), foldMap id))
+  {-# INLINEABLE logMessageFree #-}
 
 instance MonadRWS r w s m => MonadRWS r w s (PureLoggingT message m)
 
 instance MonadState s m => MonadState s (PureLoggingT log m) where
   state f = lift (state f)
+  {-# INLINEABLE state #-}
   get = lift get
+  {-# INLINEABLE get #-}
   put = lift . put
+  {-# INLINEABLE put #-}
 
 --------------------------------------------------------------------------------
 -- | A 'MonadLog' handler that throws messages away.
@@ -580,12 +609,14 @@ instance MonadBaseControl b m => MonadBaseControl b (DiscardLoggingT message m) 
 
 instance MonadTrans (DiscardLoggingT message) where
   lift = DiscardLoggingT
+  {-# INLINEABLE lift #-}
 
 instance (Functor f,MonadFree f m) => MonadFree f (DiscardLoggingT message m)
 
 -- | The trivial instance of 'MonadLog' that simply discards all messages logged.
 instance Monad m => MonadLog message (DiscardLoggingT message m) where
   logMessageFree _ = return ()
+  {-# INLINEABLE logMessageFree #-}
 
 {- $intro
 

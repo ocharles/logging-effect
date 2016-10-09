@@ -31,6 +31,7 @@
 
 - Many documentation bug fixes.
 
+- INLINEABLE pragmas added.
 
 # 1.0.0
 
