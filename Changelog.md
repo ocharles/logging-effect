@@ -24,6 +24,9 @@
   severity. The combinators are: `logDebug`, `logInfo`, `logNotice`,
   `logWarning`, `logError`, `logCritical`, `logAlert` and `logEmergency`.
 
+- `mapLogMessage` got a companion function `mapLogMessageM` that works with 
+  monadic tranformations.
+
 *Other*
 
 - Many documentation bug fixes.

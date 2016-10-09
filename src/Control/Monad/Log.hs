@@ -36,7 +36,7 @@ module Control.Monad.Log
          -- $tutorial-composing
 
          -- * @MonadLog@
-         logMessage, mapLogMessage,
+         logMessage, mapLogMessage, mapLogMessageM,
          MonadLog(..),
 
          -- * Convenience logging combinators
@@ -158,6 +158,15 @@ mapLogMessage
 mapLogMessage f m =
   runLoggingT m
               (logMessage . f)
+
+-- | Monadic version of 'mapLogMessage'. This can be used to annotate a
+-- message with something that can only be computed in a monad. See e.g.
+-- 'timestamp'.
+mapLogMessageM
+  :: MonadLog message' m
+  => (message -> m message') -> LoggingT message m a -> m a
+mapLogMessageM f m =
+  runLoggingT m ((>>= logMessage) . f)
 
 instance MonadLog message m => MonadLog message (Identity.IdentityT m)
 instance MonadLog message m => MonadLog message (Reader.ReaderT r m)
