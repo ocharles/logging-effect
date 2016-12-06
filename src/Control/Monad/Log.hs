@@ -103,6 +103,7 @@ import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
 import System.IO (Handle)
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
+import qualified Data.List.NonEmpty as NEL
 
 -- For 'MonadLog' pass-through instances.
 import qualified Control.Monad.Trans.Identity as Identity
@@ -463,21 +464,21 @@ defaultBatchingOptions = BatchingOptions 1000000 100 True
 -- 'BatchingOptions'.
 withBatchedHandler :: (MonadIO io,MonadMask io)
                    => BatchingOptions
-                   -> ([message] -> IO ())
+                   -> (NEL.NonEmpty message -> IO ())
                    -> (Handler io message -> io a)
                    -> io a
 withBatchedHandler BatchingOptions{..} flush k =
-  do do closed <- liftIO (newTVarIO False)
-        channel <- liftIO (newTBQueueIO flushMaxQueueSize)
-        bracket (liftIO (async (repeatWhileTrue (publish closed channel))))
-                (\publisher ->
-                   do liftIO (do atomically (writeTVar closed True)
-                                 wait publisher))
-                (\_ ->
-                   k (\msg ->
-                        liftIO (atomically
-                                  (writeTBQueue channel msg <|>
-                                   check (not blockWhenFull)))))
+  do closed <- liftIO (newTVarIO False)
+     channel <- liftIO (newTBQueueIO flushMaxQueueSize)
+     bracket (liftIO (async (repeatWhileTrue (publish closed channel))))
+             (\publisher ->
+                do liftIO (do atomically (writeTVar closed True)
+                              wait publisher))
+             (\_ ->
+                k (\msg ->
+                     liftIO (atomically
+                               (writeTBQueue channel msg <|>
+                                check (not blockWhenFull)))))
   where repeatWhileTrue m =
           do again <- m
              if again
@@ -491,7 +492,7 @@ withBatchedHandler BatchingOptions{..} flush k =
                        flushAfter flushAlarm <|> flushFull <|> flushOnClose
                      stillOpen <- fmap not (readTVar closed)
                      return (messages,stillOpen))
-             flush messages
+             mapM_ flush (NEL.nonEmpty messages)
              pure stillOpen
           where flushAfter flushAlarm =
                   do waitDelay flushAlarm
@@ -528,7 +529,7 @@ withFDHandler
   -> io a
 withFDHandler options fd ribbonFrac width =
   withBatchedHandler options
-                     (PP.displayIO fd . PP.renderPretty ribbonFrac width . (<> PP.linebreak) . PP.vsep)
+                     (PP.displayIO fd . PP.renderPretty ribbonFrac width . (<> PP.linebreak) . PP.vsep . NEL.toList)
 
 --------------------------------------------------------------------------------
 -- | A 'MonadLog' handler optimised for pure usage. Log messages are accumulated
