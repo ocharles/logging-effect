@@ -1,3 +1,10 @@
+# 1.1.1
+
+- `withBatchedHandler` no longer prints empty log messages. Previously,
+  if you ran a program that didn't log but used `withBatchedHandler` (or anything
+  that used that), an empty log message would be output. Thanks to @codedmart
+  for fixing this.
+
 # 1.1.0
 
 *Breaking changes*:

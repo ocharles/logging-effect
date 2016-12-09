@@ -1,5 +1,5 @@
 name: logging-effect
-version: 1.1.0
+version: 1.1.1
 synopsis: A mtl-style monad transformer for general purpose & compositional logging
 homepage: https://github.com/ocharles/logging-effect
 license: BSD3
