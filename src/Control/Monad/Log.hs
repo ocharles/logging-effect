@@ -330,7 +330,7 @@ data WithCallStack a = WithCallStack { msgCallStack :: CallStack
 -- | Given a way to render the underlying message @a@ render a message with a
 -- callstack.
 --
--- The callstack will be pretty-printed underneith the log message itself.
+-- The callstack will be pretty-printed underneath the log message itself.
 renderWithCallStack :: (a -> PP.Doc) -> WithCallStack a -> PP.Doc
 renderWithCallStack k (WithCallStack stack msg) =
   k msg PP.<$> PP.indent 2 (prettyCallStack (getCallStack stack))
@@ -416,7 +416,7 @@ instance MonadRWS r w s m => MonadRWS r w s (LoggingT message m)
 instance (Functor f,MonadFree f m) => MonadFree f (LoggingT message m)
 
 -- | 'LoggingT' unfortunately does admit an instance of the @MFunctor@ type
--- class, which provides the @hoist@ method to change the monad underneith
+-- class, which provides the @hoist@ method to change the monad underneath
 -- a monad transformer. However, it is possible to do this with 'LoggingT'
 -- provided that you have a way to re-interpret a log handler in the
 -- original monad.
