@@ -1,3 +1,9 @@
+# 1.1.2
+
+## Other changes
+
+- Increased upper bound of `time`
+
 # 1.1.1
 
 - `withBatchedHandler` no longer prints empty log messages. Previously,
