@@ -1,8 +1,18 @@
+# 1.1.3
+
+## Other Changes
+
+- Increased upper bound of `time` to allow < 1.9.
+
+---
+
 # 1.1.2
 
 ## Other changes
 
 - Increased upper bound of `time`
+
+---
 
 # 1.1.1
 
@@ -10,6 +20,8 @@
   if you ran a program that didn't log but used `withBatchedHandler` (or anything
   that used that), an empty log message would be output. Thanks to @codedmart
   for fixing this.
+
+---
 
 # 1.1.0
 
@@ -45,6 +57,8 @@
 - Many documentation bug fixes.
 
 - INLINEABLE pragmas added.
+
+---
 
 # 1.0.0
 
