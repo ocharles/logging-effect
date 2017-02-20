@@ -100,7 +100,7 @@ import GHC.Stack
 #else
 import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
 #endif
-import System.IO (Handle)
+import System.IO (Handle, hFlush)
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Data.List.NonEmpty as NEL
@@ -527,9 +527,16 @@ withFDHandler
   -> Int -- ^ The amount of characters per line. Lines longer than this will be pretty-printed across multiple lines if possible.
   -> (Handler io PP.Doc -> io a)
   -> io a
-withFDHandler options fd ribbonFrac width =
-  withBatchedHandler options
-                     (PP.displayIO fd . PP.renderPretty ribbonFrac width . (<> PP.linebreak) . PP.vsep . NEL.toList)
+withFDHandler options fd ribbonFrac width = withBatchedHandler options flush
+  where
+    flush messages = do
+      PP.displayIO
+        fd
+        (PP.renderPretty
+           ribbonFrac
+           width
+           (PP.vsep (NEL.toList messages) <> PP.linebreak))
+      hFlush fd
 
 --------------------------------------------------------------------------------
 -- | A 'MonadLog' handler optimised for pure usage. Log messages are accumulated

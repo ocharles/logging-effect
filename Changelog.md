@@ -1,3 +1,15 @@
+# 1.2.0
+
+## Major Changes
+
+- `withFDHandler` now explicitly flushes the file handle whenever log entries
+   are rendered out. Thanks to @filterfish for identifying this omission that
+   could lead to log messages being dropped.
+
+   Upgrade steps: no changes other than updating `logging-effect`.
+
+---
+
 # 1.1.3
 
 ## Other Changes
@@ -49,7 +61,7 @@
   severity. The combinators are: `logDebug`, `logInfo`, `logNotice`,
   `logWarning`, `logError`, `logCritical`, `logAlert` and `logEmergency`.
 
-- `mapLogMessage` got a companion function `mapLogMessageM` that works with 
+- `mapLogMessage` got a companion function `mapLogMessageM` that works with
   monadic tranformations.
 
 *Other*
