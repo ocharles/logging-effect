@@ -1,3 +1,11 @@
+# 1.2.1
+
+## Other Changes
+
+* Increased upper bound of `base` to allow < 4.11.
+
+---
+
 # 1.2.0
 
 ## Major Changes
