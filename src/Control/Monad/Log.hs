@@ -16,7 +16,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 
 module Control.Monad.Log
        ( -- * Introduction
@@ -801,7 +800,7 @@ main :: IO ()
 main = do
   'withFDHandler' 'defaultBatchingOptions' 'stderr' 0.4 80 $ \\stderrHandler ->
   'withFDHandler' 'defaultBatchingOptions' 'stdout' 0.4 80 $ \\stdoutHandler ->
-  'runLoggingT' m
+  'runLoggingT' testApp
               (\\message ->
                  case 'msgSeverity' message of
                    'Error' -> stderrHandler ('discardSeverity' message)
