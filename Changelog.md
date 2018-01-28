@@ -1,3 +1,11 @@
+# 1.2.2
+
+## Other Changes
+
+* Increased upper bound of `free` and `time`.
+
+---
+
 # 1.2.1
 
 ## Other Changes
