@@ -1,3 +1,11 @@
+# 1.2.3
+
+## Other Changes
+
+* Increased upper of `async`.
+
+---
+
 # 1.2.2
 
 ## Other Changes
