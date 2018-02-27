@@ -1,3 +1,11 @@
+# 1.2.4
+
+## Other Changes
+
+* Increased upper bound of `exceptions`.
+
+---
+
 # 1.2.3
 
 ## Other Changes
