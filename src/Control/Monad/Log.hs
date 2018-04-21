@@ -100,6 +100,7 @@ import GHC.Stack
 import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
 #endif
 import System.IO (Handle, hFlush)
+import GHC.IO.Handle.FD (stdin, stdout, stderr)
 import qualified Data.Text.Lazy as LT
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import qualified Data.List.NonEmpty as NEL
