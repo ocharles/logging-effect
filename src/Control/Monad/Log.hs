@@ -91,7 +91,7 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
-import Data.Monoid
+import Data.Semigroup
 import Data.Time (UTCTime, getCurrentTime)
 #if !MIN_VERSION_base(4, 9, 0)
 import GHC.SrcLoc (SrcLoc, showSrcLoc)
@@ -400,11 +400,17 @@ instance MonadReader r m => MonadReader r (LoggingT message m) where
 
 newtype Ap m = Ap { runAp :: m () }
 
+instance Applicative m => Semigroup (Ap m) where
+  Ap l <> Ap r = Ap (l *> r)
+  {-# INLINEABLE (<>) #-}
+
 instance Applicative m => Monoid (Ap m) where
   mempty = Ap (pure ())
   {-# INLINEABLE mempty #-}
+#if !(MIN_VERSION_base(4,11,0))
   Ap l `mappend` Ap r = Ap (l *> r)
   {-# INLINEABLE mappend #-}
+#endif
 
 -- | The main instance of 'MonadLog', which replaces calls to 'logMessage' with calls to a 'Handler'.
 instance Monad m => MonadLog message (LoggingT message m) where
@@ -572,7 +578,7 @@ mkPureLoggingT m =
   MkPureLoggingT
     (StateT (\s ->
                do (a,l) <- m
-                  return (a,s <> l)))
+                  return (a,mappend s l)))
 {-# INLINEABLE mkPureLoggingT #-}
 
 instance MonadTrans (PureLoggingT log) where
