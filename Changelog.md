@@ -1,3 +1,11 @@
+# 1.2.6
+
+## Other Changes
+
+* Increased upper bound of `base` and support GHC 8.4.
+
+---
+
 # 1.2.5
 
 ## Other Changes
