@@ -1,3 +1,15 @@
+# 1.3.0
+
+## Major Changes
+
+* Switch from `wl-pprint-text` to `prettyprinter`.
+
+## Other changes
+
+* Change the type of the `ribbonFrac` parameter of `withFDHandler`
+  from `Float` to `Double` to reflect the underlying `prettyprinter`
+  API.
+
 # 1.2.6
 
 ## Other Changes

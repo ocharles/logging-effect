@@ -43,7 +43,7 @@ module Control.Monad.Log
          logDebug, logInfo, logNotice, logWarning, logError, logCritical, logAlert, logEmergency,
 
          -- * Message transformers
-         PP.renderPretty,
+         PP.layoutPretty,
          -- ** Timestamps
          WithTimestamp(..), timestamp, renderWithTimestamp,
          -- ** Severity
@@ -102,7 +102,8 @@ import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
 import System.IO (Handle, hFlush)
 import GHC.IO.Handle.FD (stdin, stdout, stderr)
 import qualified Data.Text.Lazy as LT
-import qualified Text.PrettyPrint.Leijen.Text as PP
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
 import qualified Data.List.NonEmpty as NEL
 
 -- For 'MonadLog' pass-through instances.
@@ -213,7 +214,7 @@ data Severity =
   deriving (Eq,Enum,Bounded,Read,Show,Ord)
 
 instance PP.Pretty Severity where
-  pretty = PP.text . LT.pack . show
+  pretty = PP.pretty . LT.pack . show
 
 -- | Given a way to render the underlying message @a@, render a message with its
 -- severity.
@@ -221,7 +222,7 @@ instance PP.Pretty Severity where
 -- >>> renderWithSeverity id (WithSeverity Informational "Flux capacitor is functional")
 -- [Informational] Flux capacitor is functional
 renderWithSeverity
-  :: (a -> PP.Doc) -> (WithSeverity a -> PP.Doc)
+  :: (a -> PP.Doc ann) -> (WithSeverity a -> PP.Doc ann)
 renderWithSeverity k (WithSeverity u a) =
   PP.brackets (PP.pretty u) PP.<+> PP.align (k a)
 
@@ -305,11 +306,11 @@ data WithTimestamp a =
 -- [Tue, 19 Jan 2016 11:29:42 UTC] Setting target speed to plaid
 renderWithTimestamp :: (UTCTime -> String)
                        -- ^ How to format the timestamp.
-                    -> (a -> PP.Doc)
+                    -> (a -> PP.Doc ann)
                        -- ^ How to render the rest of the message.
-                    -> (WithTimestamp a -> PP.Doc)
+                    -> (WithTimestamp a -> PP.Doc ann)
 renderWithTimestamp formatter k (WithTimestamp a t) =
-  PP.brackets (PP.text (LT.pack (formatter t))) PP.<+> PP.align (k a)
+  PP.brackets (PP.pretty (LT.pack (formatter t))) PP.<+> PP.align (k a)
 
 -- | Add the current time as a timestamp to a message.
 timestamp :: (MonadIO m) => a -> m (WithTimestamp a)
@@ -331,22 +332,22 @@ data WithCallStack a = WithCallStack { msgCallStack :: CallStack
 -- callstack.
 --
 -- The callstack will be pretty-printed underneath the log message itself.
-renderWithCallStack :: (a -> PP.Doc) -> WithCallStack a -> PP.Doc
+renderWithCallStack :: (a -> PP.Doc ann) -> WithCallStack a -> PP.Doc ann
 renderWithCallStack k (WithCallStack stack msg) =
-  k msg PP.<$> PP.indent 2 (prettyCallStack (getCallStack stack))
+  k msg <> PP.line <> PP.indent 2 (prettyCallStack (getCallStack stack))
 
 #if MIN_VERSION_base(4, 9, 0)
 showSrcLoc :: SrcLoc -> String
 showSrcLoc = prettySrcLoc
 #endif
 
-prettyCallStack :: [(String,SrcLoc)] -> PP.Doc
+prettyCallStack :: [(String,SrcLoc)] -> PP.Doc ann
 prettyCallStack [] = "empty callstack"
 prettyCallStack (root:rest) =
-  prettyCallSite root PP.<$> PP.indent 2 (PP.vsep (map prettyCallSite rest))
+  prettyCallSite root <> PP.line <> PP.indent 2 (PP.vsep (map prettyCallSite rest))
   where prettyCallSite (f,loc) =
-          PP.text (LT.pack f) <> ", called at " <>
-          PP.text (LT.pack (showSrcLoc loc))
+          PP.pretty (LT.pack f) <> ", called at " <>
+          PP.pretty (LT.pack (showSrcLoc loc))
 
 -- | Construct a 'WithCallStack' log message.
 --
@@ -529,19 +530,18 @@ withFDHandler
   :: (MonadIO io,MonadMask io)
   => BatchingOptions
   -> Handle -- ^ The 'Handle' to write log messages to.
-  -> Float -- ^ The @ribbonFrac@ parameter to 'PP.renderPretty'
+  -> Double -- ^ The @ribbonFrac@ parameter to 'PP.renderPretty'
   -> Int -- ^ The amount of characters per line. Lines longer than this will be pretty-printed across multiple lines if possible.
-  -> (Handler io PP.Doc -> io a)
+  -> (Handler io (PP.Doc ann) -> io a)
   -> io a
 withFDHandler options fd ribbonFrac width = withBatchedHandler options flush
   where
     flush messages = do
-      PP.displayIO
+      PP.renderIO
         fd
-        (PP.renderPretty
-           ribbonFrac
-           width
-           (PP.vsep (NEL.toList messages) <> PP.linebreak))
+        (PP.layoutPretty
+           (PP.LayoutOptions (PP.AvailablePerLine width ribbonFrac))
+           (PP.vsep (NEL.toList messages) <> PP.line'))
       hFlush fd
 
 --------------------------------------------------------------------------------
