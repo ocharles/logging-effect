@@ -10,6 +10,8 @@
   from `Float` to `Double` to reflect the underlying `prettyprinter`
   API.
 
+---
+
 # 1.2.6
 
 ## Other Changes
