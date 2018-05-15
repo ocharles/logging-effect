@@ -6,16 +6,17 @@ let
 
   f = { mkDerivation, async, base, bytestring, criterion
       , exceptions, fast-logger, free, lifted-async, monad-control
-      , monad-logger, mtl, semigroups, stdenv, stm, stm-delay, text, time
-      , transformers, transformers-base, wl-pprint-text
+      , monad-logger, mtl, prettyprinter, semigroups, stdenv, stm
+      , stm-delay, text, time, transformers, transformers-base
+      , wl-pprint-text
       }:
       mkDerivation {
         pname = "logging-effect";
-        version = "1.2.5";
+        version = "1.3.0";
         src = ./.;
         libraryHaskellDepends = [
-          async base exceptions free monad-control mtl semigroups stm
-          stm-delay text time transformers transformers-base wl-pprint-text
+          async base exceptions free monad-control mtl prettyprinter
+          semigroups stm stm-delay text time transformers transformers-base
         ];
         benchmarkHaskellDepends = [
           base bytestring criterion fast-logger lifted-async monad-logger
