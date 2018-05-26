@@ -6,11 +6,12 @@ import Control.Monad (replicateM_)
 import Criterion.Main
 import qualified Control.Monad.Log as LoggingEffect
 import qualified Control.Monad.Logger as MonadLogger
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
 import System.Log.FastLogger (fromLogStr, toLogStr)
 import Data.Monoid ((<>))
 import qualified Data.Text.IO as T
-import qualified Text.PrettyPrint.Leijen.Text as PP
+import qualified Data.Text.Prettyprint.Doc as PP
+import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
 import System.IO (stdout)
 import Control.Concurrent.Async.Lifted
 import Data.Foldable (sequenceA_)
@@ -33,9 +34,9 @@ main = defaultMain [ bgroup "log10k" [ bench "logging-effect" (nfIO (LoggingEffe
                    , bgroup "discard-logs" [ bench "logging-effect" (nfIO (LoggingEffect.discardLogging loggingEffectLog))
                                            , bench "monad-logger" (nfIO (MonadLogger.runNoLoggingT monadLoggerLog))]]
 
-loggingEffectStdoutHandler = PP.putDoc . (<> PP.linebreak) . LoggingEffect.renderWithSeverity id
+loggingEffectStdoutHandler = PP.putDoc . (<> PP.line') . LoggingEffect.renderWithSeverity id
 
-loggingEffectLog :: LoggingEffect.MonadLog (LoggingEffect.WithSeverity PP.Doc) m => m ()
+loggingEffectLog :: LoggingEffect.MonadLog (LoggingEffect.WithSeverity (PP.Doc ann)) m => m ()
 loggingEffectLog = LoggingEffect.logMessage (LoggingEffect.WithSeverity LoggingEffect.Debug "Log message")
 
 monadLoggerLog :: MonadLogger.MonadLogger m => m ()
