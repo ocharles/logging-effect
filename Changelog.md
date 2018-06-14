@@ -1,3 +1,7 @@
+## Other changes
+
+* Add MonadUnliftIO instance
+
 # 1.3.0
 
 ## Major Changes
