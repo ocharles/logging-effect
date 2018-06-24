@@ -83,6 +83,7 @@ import Control.Monad.Error.Class (MonadError(..))
 import Control.Monad.Fix
 import Control.Monad.Free.Class (MonadFree(..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Unlift (MonadUnliftIO(..), UnliftIO(..), withUnliftIO)
 import Control.Monad.RWS.Class (MonadRWS)
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
@@ -379,6 +380,12 @@ instance MonadBaseControl b m => MonadBaseControl b (LoggingT message m) where
                               runInBase (\(LoggingT (ReaderT m)) ->
                                            runInReader (m handler)))))
   restoreM st = LoggingT (ReaderT (\_ -> restoreM st))
+
+instance MonadUnliftIO m => MonadUnliftIO (LoggingT msg m) where
+  askUnliftIO =
+    LoggingT . ReaderT $ \h ->
+      withUnliftIO $ \u ->
+        return (UnliftIO (unliftIO u . flip runLoggingT h))
 
 -- | Given a 'Handler' for a given @message@, interleave this 'Handler' into the
 -- underlying @m@ computation whenever 'logMessage' is called.
