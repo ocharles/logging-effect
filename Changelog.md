@@ -1,6 +1,8 @@
-## Other changes
+## 1.3.1
 
-* Add MonadUnliftIO instance
+* Add `MonadUnliftIO` instance for `LoggingT`.
+
+---
 
 # 1.3.0
 
