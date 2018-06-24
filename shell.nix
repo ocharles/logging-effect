@@ -8,7 +8,7 @@ let
       , exceptions, fast-logger, free, lifted-async, monad-control
       , monad-logger, mtl, prettyprinter, semigroups, stdenv, stm
       , stm-delay, text, time, transformers, transformers-base
-      , wl-pprint-text
+      , unliftio-core
       }:
       mkDerivation {
         pname = "logging-effect";
@@ -17,10 +17,11 @@ let
         libraryHaskellDepends = [
           async base exceptions free monad-control mtl prettyprinter
           semigroups stm stm-delay text time transformers transformers-base
+          unliftio-core
         ];
         benchmarkHaskellDepends = [
           base bytestring criterion fast-logger lifted-async monad-logger
-          text time wl-pprint-text
+          prettyprinter text time
         ];
         homepage = "https://github.com/ocharles/logging-effect";
         description = "A mtl-style monad transformer for general purpose & compositional logging";
