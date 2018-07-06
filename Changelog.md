@@ -1,3 +1,11 @@
+## NEXT
+
+### Other Changes
+
+* Support `free-5.1`.
+
+---
+
 ## 1.3.1
 
 * Add `MonadUnliftIO` instance for `LoggingT`.
