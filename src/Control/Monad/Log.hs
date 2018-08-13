@@ -744,7 +744,7 @@ that you intend to log. In this example, we will log a 'PP.Doc' that is
 wrapped in 'WithSeverity'.
 
 @
-testApp :: 'MonadLog' ('WithSeverity' 'PP.Doc') m => m ()
+testApp :: 'MonadLog' ('WithSeverity' ('PP.Doc' ann)) m => m ()
 testApp = do
   logMessage ('WithSeverity' 'Informational' "Don't mind me")
   logMessage ('WithSeverity' 'Error' "But do mind me!")
@@ -840,29 +840,29 @@ For example, we've already seen the basic @testApp@ computation above that used
 have some older code that doesn't yet have any severity information:
 
 @
-legacyCode :: 'MonadLog' 'PP.Doc' m => m ()
+legacyCode :: 'MonadLog' ('PP.Doc' ann) m => m ()
 legacyCode = 'logMessage' "Does anyone even remember writing this function?"
 @
 
 Here @legacyCode@ is only logging 'PP.Doc', while our @testApp@ is logging
 'WithSeverity' 'PP.Doc'. What happens if we compose these programs?
 
->>> :t testApp >> legacyCode
-  Couldn't match type ‘Doc’ with ‘WithSeverity Doc’
+>>> :t runLoggingT (testApp >> legacyCode) (const (pure ()))
+  Couldn't match type ‘WithSeverity (Doc ann1)’ with '(Doc ann0)'
 
 Whoops! 'MonadLog' has /functional dependencies/ on the type class which means
 that there can only be a single way to log per monad. One solution might be
 to 'lift' one set of logs into the other:
 
->>> :t testApp >> lift legacyCode
-  :: (MonadTrans t, MonadLog Doc m, MonadLog (WithSeverity Doc) (t m)) => t m ()
+>>> :t runLoggingT (testApp >> lift legacyCode) (const (pure ()))
+  :: MonadLog (Doc ann) m => m ()
 
 And indeed, this is /a/ solution, but it's not a particularly nice one.
 
 Instead, we can map both of these computations into a common log format:
 
 >>> :t mapLogMessage Left testApp >> mapLogMessage Right (logMessage "Hello")
-  :: (MonadLog (Either (WithSeverity Doc) Doc) m) => m ()
+  :: (MonadLog (Either (WithSeverity (Doc ann)) (Doc ann)) m) => m ()
 
 This is a trivial way of combining two different types of log message. In larger
 applications you will probably want to define a new sum-type that combines all of
