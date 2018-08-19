@@ -616,7 +616,7 @@ instance MonadState s m => MonadState s (PureLoggingT log m) where
 -- 'discardLogging' is:
 --
 -- @
--- 'discardLogging' :: 'DiscardLoggingT' messsage m a -> m a
+-- 'discardLogging' :: 'DiscardLoggingT' message m a -> m a
 -- @
 newtype DiscardLoggingT message m a =
   DiscardLoggingT {discardLogging :: m a -- ^ Run a 'MonadLog' computation by throwing away all log requests.
