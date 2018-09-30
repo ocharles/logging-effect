@@ -1,3 +1,12 @@
+## Unreleased
+
+### Other Changes
+
+* Support `stm-2.5`.
+* Support `base-4.12`.
+
+---
+
 ## 1.3.2 -- 2018-07-06
 
 ### Other Changes

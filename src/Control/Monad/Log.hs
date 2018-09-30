@@ -483,7 +483,7 @@ withBatchedHandler :: (MonadIO io,MonadMask io)
                    -> io a
 withBatchedHandler BatchingOptions{..} flush k =
   do closed <- liftIO (newTVarIO False)
-     channel <- liftIO (newTBQueueIO flushMaxQueueSize)
+     channel <- liftIO (newTBQueueIO (fromIntegral flushMaxQueueSize))
      bracket (liftIO (async (repeatWhileTrue (publish closed channel))))
              (\publisher ->
                 do liftIO (do atomically (writeTVar closed True)
