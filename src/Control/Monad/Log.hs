@@ -92,7 +92,7 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
-import Data.Semigroup
+import Data.Semigroup ((<>))
 import Data.Time (UTCTime, getCurrentTime)
 #if !MIN_VERSION_base(4, 9, 0)
 import GHC.SrcLoc (SrcLoc, showSrcLoc)
@@ -101,7 +101,6 @@ import GHC.Stack
 import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
 #endif
 import System.IO (Handle, hFlush)
-import GHC.IO.Handle.FD (stdin, stdout, stderr)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Prettyprint.Doc as PP
 import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
