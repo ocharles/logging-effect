@@ -1,3 +1,11 @@
+## Next
+
+### Other Changes
+
+* Support `semigroups-0.19`.
+
+---
+
 ## 1.3.3 -- 2018-09-30
 
 ### Other Changes
