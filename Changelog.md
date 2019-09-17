@@ -1,10 +1,18 @@
-## 1.3.4 -- 2019-09-17
+## 1.3.5 -- 2019-09-17
 
 ### Other Changes
 
 * Support `base-4.13`
 * Support GHC 8.8.1
 * Support `prettyprinter-1.3`
+
+---
+
+## 1.3.4 -- 2019-05-15
+
+### Other Changes
+
+* Support `semigroups-0.19`.
 
 ---
 
