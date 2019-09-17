@@ -1,3 +1,13 @@
+## 1.3.4 -- 2019-09-17
+
+### Other Changes
+
+* Support `base-4.13`
+* Support GHC 8.8.1
+* Support `prettyprinter-1.3`
+
+---
+
 ## 1.3.3 -- 2018-09-30
 
 ### Other Changes
