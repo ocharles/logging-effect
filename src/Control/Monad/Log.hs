@@ -94,6 +94,9 @@ import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
 import Data.Semigroup ((<>))
 import Data.Time (UTCTime, getCurrentTime)
+#if MIN_VERSION_base(4,9,0)
+import qualified Control.Monad.Fail as Fail
+#endif
 #if !MIN_VERSION_base(4, 9, 0)
 import GHC.SrcLoc (SrcLoc, showSrcLoc)
 import GHC.Stack
@@ -365,7 +368,7 @@ withCallStack = WithCallStack ?stack
 -- side-effect (such as writing to @stdout@, or appending a database table).
 newtype LoggingT message m a =
   LoggingT (ReaderT (Handler m message) m a)
-  deriving (Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO,MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s)
+  deriving (Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO,MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s, Fail.MonadFail)
 
 instance MonadBase b m => MonadBase b (LoggingT message m) where
   liftBase = lift . liftBase
@@ -554,7 +557,7 @@ withFDHandler options fd ribbonFrac width = withBatchedHandler options flush
 -- | A 'MonadLog' handler optimised for pure usage. Log messages are accumulated
 -- strictly, given that messasges form a 'Monoid'.
 newtype PureLoggingT log m a = MkPureLoggingT (StateT log m a)
-  deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus)
+  deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,Fail.MonadFail)
 
 instance MonadBase b m => MonadBase b (PureLoggingT message m) where
   liftBase = lift . liftBase
@@ -620,7 +623,7 @@ instance MonadState s m => MonadState s (PureLoggingT log m) where
 newtype DiscardLoggingT message m a =
   DiscardLoggingT {discardLogging :: m a -- ^ Run a 'MonadLog' computation by throwing away all log requests.
                   }
-  deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s,MonadBase b)
+  deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s,MonadBase b,Fail.MonadFail)
 
 instance MonadBaseControl b m => MonadBaseControl b (DiscardLoggingT message m) where
   type StM (DiscardLoggingT message m) a = StM m a

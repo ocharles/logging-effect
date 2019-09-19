@@ -1,3 +1,11 @@
+## 1.3.6 -- 2019-09-19
+
+### New
+
+* Added `MonadFail` instances.
+
+---
+
 ## 1.3.5 -- 2019-09-17
 
 ### Other Changes
