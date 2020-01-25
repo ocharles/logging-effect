@@ -1,4 +1,4 @@
-## 1.3.9 -- Unreleased
+## 1.3.9 -- 2020-01-25
 
 ### Other Changes
 
