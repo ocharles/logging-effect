@@ -1,3 +1,11 @@
+## 1.3.9 -- Unreleased
+
+### Other Changes
+
+* Support `prettyprinter-1.6`
+
+---
+
 ## 1.3.8 -- 2019-11-10
 
 ### Other Changes
