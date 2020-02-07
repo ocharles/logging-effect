@@ -630,6 +630,13 @@ instance MonadBaseControl b m => MonadBaseControl b (DiscardLoggingT message m) 
   liftBaseWith runInBase = lift (liftBaseWith (\runInOrig -> runInBase (runInOrig . discardLogging)))
   restoreM = lift . restoreM
 
+instance MonadUnliftIO m => MonadUnliftIO (DiscardLoggingT msg m) where
+  askUnliftIO =
+    DiscardLoggingT
+      $ withUnliftIO
+      $ \u ->
+        return (UnliftIO (unliftIO u . discardLogging))
+
 instance MonadTrans (DiscardLoggingT message) where
   lift = DiscardLoggingT
   {-# INLINEABLE lift #-}

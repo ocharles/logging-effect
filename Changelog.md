@@ -1,3 +1,8 @@
+
+## Other changes
+
+* Add MonadUnliftIO instance to DiscardLoggingT
+
 ## 1.3.9 -- 2020-01-25
 
 ### Other Changes
