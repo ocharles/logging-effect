@@ -660,7 +660,7 @@ entirely.
 Unlike other logging libraries available on Hackage, 'MonadLog' does /not/
 assume that you will be logging text information. Instead, the choice of logging
 data is up to you. This leads to a highly compositional form of logging, with
-the able to reinterpret logs into different formats, and avoid throwing
+the ability to reinterpret logs into different formats, and avoid throwing
 information away if your final output is structured (such as logging to a
 relational database).
 
