@@ -1,4 +1,4 @@
-## Unreleased
+## 1.3.10 -- 2020-06-17
 
 ### Other changes
 
