@@ -368,11 +368,7 @@ withCallStack = WithCallStack ?stack
 -- side-effect (such as writing to @stdout@, or appending a database table).
 newtype LoggingT message m a =
   LoggingT (ReaderT (Handler m message) m a)
-  deriving ( Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO
-#if MIN_VERSION_unliftio_core(0,2,0)
-           , MonadUnliftIO
-#endif
-           , MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s, Fail.MonadFail)
+  deriving ( Monad,Applicative,Functor,MonadFix,Alternative,MonadPlus,MonadIO,MonadUnliftIO,MonadWriter w,MonadCont,MonadError e,MonadMask,MonadCatch,MonadThrow,MonadState s, Fail.MonadFail)
 
 instance MonadBase b m => MonadBase b (LoggingT message m) where
   liftBase = lift . liftBase
@@ -386,14 +382,6 @@ instance MonadBaseControl b m => MonadBaseControl b (LoggingT message m) where
                               runInBase (\(LoggingT (ReaderT m)) ->
                                            runInReader (m handler)))))
   restoreM st = LoggingT (ReaderT (\_ -> restoreM st))
-
-#if !MIN_VERSION_unliftio_core(0,2,0)
-instance MonadUnliftIO m => MonadUnliftIO (LoggingT msg m) where
-  askUnliftIO =
-    LoggingT . ReaderT $ \h ->
-      withUnliftIO $ \u ->
-        return (UnliftIO (unliftIO u . flip runLoggingT h))
-#endif
 
 -- | Given a 'Handler' for a given @message@, interleave this 'Handler' into the
 -- underlying @m@ computation whenever 'logMessage' is called.
@@ -629,25 +617,12 @@ instance MonadState s m => MonadState s (PureLoggingT log m) where
 newtype DiscardLoggingT message m a =
   DiscardLoggingT {discardLogging :: m a -- ^ Run a 'MonadLog' computation by throwing away all log requests.
                   }
-  deriving ( Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO
-#if MIN_VERSION_unliftio_core(0,2,0)
-           , MonadUnliftIO
-#endif
-           , MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s,MonadBase b,Fail.MonadFail)
+  deriving ( Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadUnliftIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,MonadState s,MonadRWS r w s,MonadBase b,Fail.MonadFail)
 
 instance MonadBaseControl b m => MonadBaseControl b (DiscardLoggingT message m) where
   type StM (DiscardLoggingT message m) a = StM m a
   liftBaseWith runInBase = lift (liftBaseWith (\runInOrig -> runInBase (runInOrig . discardLogging)))
   restoreM = lift . restoreM
-
-#if !MIN_VERSION_unliftio_core(0,2,0)
-instance MonadUnliftIO m => MonadUnliftIO (DiscardLoggingT msg m) where
-  askUnliftIO =
-    DiscardLoggingT
-      $ withUnliftIO
-      $ \u ->
-        return (UnliftIO (unliftIO u . discardLogging))
-#endif
 
 instance MonadTrans (DiscardLoggingT message) where
   lift = DiscardLoggingT
