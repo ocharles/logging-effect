@@ -1,3 +1,11 @@
+## 1.3.11 -- 2020-08-18
+
+### Other changes
+
+* Increase the lower-bound of unliftio-core to 0.2.0.0
+
+---
+
 ## 1.3.10 -- 2020-06-17
 
 ### Other changes
