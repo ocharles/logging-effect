@@ -549,7 +549,7 @@ withFDHandler options fd ribbonFrac width = withBatchedHandler options flush
 
 --------------------------------------------------------------------------------
 -- | A 'MonadLog' handler optimised for pure usage. Log messages are accumulated
--- strictly, given that messasges form a 'Monoid'.
+-- strictly, given that messages form a 'Monoid'.
 newtype PureLoggingT log m a = MkPureLoggingT (StateT log m a)
   deriving (Functor,Applicative,Monad,MonadFix,MonadCatch,MonadThrow,MonadIO,MonadMask,MonadReader r,MonadWriter w,MonadCont,MonadError e,Alternative,MonadPlus,Fail.MonadFail)
 
