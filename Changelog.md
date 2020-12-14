@@ -1,3 +1,12 @@
+## Unreleased
+
+### Other changes
+
+* Increase the upper-bound of time to < 1.12.
+* Increase the upper-bound of prettyprinter to < 1.8.
+
+---
+
 ## 1.3.11 -- 2020-08-18
 
 ### Other changes
