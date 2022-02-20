@@ -1,3 +1,11 @@
+## 1.3.13 -- 2022-02-20
+
+### Other changes
+
+* Increased the upper-bound of time to < 1.13.
+* Increased the upper-bound of base to < 4.17.
+* Increased the upper-bound of semigroups to < 0.21.
+
 ## 1.3.12 -- 2020-12-14
 
 ### Other changes
