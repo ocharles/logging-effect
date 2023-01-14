@@ -1,8 +1,6 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE AutoDeriveTypeable #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,7 +11,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -83,7 +80,7 @@ import Control.Monad.Error.Class (MonadError(..))
 import Control.Monad.Fix
 import Control.Monad.Free.Class (MonadFree(..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.IO.Unlift (MonadUnliftIO(..), UnliftIO(..), withUnliftIO)
+import Control.Monad.IO.Unlift (MonadUnliftIO(..))
 import Control.Monad.RWS.Class (MonadRWS)
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
@@ -92,7 +89,6 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State.Strict (StateT(..))
 import Control.Monad.Writer.Class (MonadWriter(..))
-import Data.Semigroup ((<>))
 import Data.Time (UTCTime, getCurrentTime)
 #if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as Fail
@@ -105,8 +101,8 @@ import GHC.Stack (SrcLoc, CallStack, getCallStack, prettySrcLoc)
 #endif
 import System.IO (Handle, hFlush)
 import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Prettyprint.Doc as PP
-import qualified Data.Text.Prettyprint.Doc.Render.Text as PP
+import qualified Prettyprinter as PP
+import qualified Prettyprinter.Render.Text as PP
 import qualified Data.List.NonEmpty as NEL
 
 -- For 'MonadLog' pass-through instances.
@@ -118,7 +114,6 @@ import qualified Control.Monad.Trans.Writer.Lazy as LazyWriter
 import qualified Control.Monad.Trans.Writer.Strict as StrictWriter
 import qualified Control.Monad.Trans.Maybe as Maybe
 import qualified Control.Monad.Trans.Except as Except
-import qualified Control.Monad.Trans.Error as Error
 import qualified Control.Monad.Trans.RWS.Lazy as LazyRWS
 import qualified Control.Monad.Trans.RWS.Strict as StrictRWS
 import qualified Control.Monad.Trans.Cont as Cont
@@ -185,7 +180,6 @@ instance (Monoid w, MonadLog message m) => MonadLog message (StrictWriter.Writer
 instance (Monoid w, MonadLog message m) => MonadLog message (LazyWriter.WriterT w m)
 instance MonadLog message m => MonadLog message (Maybe.MaybeT m)
 instance MonadLog message m => MonadLog message (Except.ExceptT e m)
-instance (Error.Error e, MonadLog message m) => MonadLog message (Error.ErrorT e m)
 instance (Monoid w, MonadLog message m) => MonadLog message (StrictRWS.RWST r w s m)
 instance (Monoid w, MonadLog message m) => MonadLog message (LazyRWS.RWST r w s m)
 instance MonadLog message m => MonadLog message (Cont.ContT r m)
