@@ -117,7 +117,6 @@ import qualified Control.Monad.Trans.Except as Except
 import qualified Control.Monad.Trans.RWS.Lazy as LazyRWS
 import qualified Control.Monad.Trans.RWS.Strict as StrictRWS
 import qualified Control.Monad.Trans.Cont as Cont
-import qualified Control.Monad.Trans.List as List
 import qualified Control.Monad.Trans.Free as Free
 import qualified Control.Monad.Trans.Free.Church as Free
 import qualified Control.Monad.Catch.Pure as Exceptions
@@ -183,7 +182,6 @@ instance MonadLog message m => MonadLog message (Except.ExceptT e m)
 instance (Monoid w, MonadLog message m) => MonadLog message (StrictRWS.RWST r w s m)
 instance (Monoid w, MonadLog message m) => MonadLog message (LazyRWS.RWST r w s m)
 instance MonadLog message m => MonadLog message (Cont.ContT r m)
-instance MonadLog message m => MonadLog message (List.ListT m)
 instance (Functor f, MonadLog message m) => MonadLog message (Free.FreeT f m)
 instance (Functor f, MonadLog message m) => MonadLog message (Free.FT f m)
 instance MonadLog message m => MonadLog message (Exceptions.CatchT m)
