@@ -1,3 +1,10 @@
+## 1.4.0 -- 2023-03-26
+
+* Build with GHC 9.6
+* Build with `free-5.2`
+* Remove instances for `ListT`, as this type is deprecated and removed from `transformers-0.6`.
+* Remove instances for `ErrorT`, as this type is deprecated and removed from `transformers-0.6`.
+
 ## 1.3.13 -- 2022-02-20
 
 ### Other changes
