@@ -13,10 +13,10 @@ extra-source-files: Changelog.md
 library
   exposed-modules:     Control.Monad.Log
   other-extensions:    ViewPatterns, OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, FunctionalDependencies, PatternSynonyms
-  build-depends:       base >=4.8 && <4.19
+  build-depends:       base >=4.8 && <4.20
                      , async >=2.0 && <2.3
                      , transformers >=0.4 && <0.7
-                     , text >=1.2 && <2.1
+                     , text >=1.2 && <2.2
                      , time >=1.5 && <1.13
                      , mtl >= 2.2.1 && <2.4
                      , exceptions >= 0.8.0.2 && <0.11
