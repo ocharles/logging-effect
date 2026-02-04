@@ -111,6 +111,7 @@ import qualified Data.List.NonEmpty as NEL
 
 -- For 'MonadLog' pass-through instances.
 import qualified Control.Monad.Trans.Identity as Identity
+import qualified Control.Monad.Trans.Accum as Accum
 import qualified Control.Monad.Trans.Reader as Reader
 import qualified Control.Monad.Trans.State.Lazy as LazyState
 import qualified Control.Monad.Trans.State.Strict as StrictState
@@ -176,6 +177,7 @@ mapLogMessageM f m =
 {-# INLINEABLE mapLogMessageM #-}
 
 instance MonadLog message m => MonadLog message (Identity.IdentityT m)
+instance (Monoid w, MonadLog message m) => MonadLog message (Accum.AccumT w m)
 instance MonadLog message m => MonadLog message (Reader.ReaderT r m)
 instance MonadLog message m => MonadLog message (StrictState.StateT s m)
 instance MonadLog message m => MonadLog message (LazyState.StateT s m)
